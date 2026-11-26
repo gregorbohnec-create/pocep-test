@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Neurobeans – test počepa</title>
+<title>Neurobeans – test vaj</title>
 <style>
 /* VOICE: igriv, otroški, a jasen – testno orodje za igrišče
    IDEA: pult igre Neurobeans: barvni fižolčki na vijoličnem polju
@@ -40,6 +40,7 @@ button:focus-visible{outline:3px solid var(--squat);outline-offset:2px}
 .bean{background:transparent;border:3px solid transparent;border-radius:18px;padding:6px 0;min-height:96px;display:flex;align-items:center;justify-content:center}
 .bean svg{width:52px;height:76px;pointer-events:none;filter:drop-shadow(0 5px 6px rgba(40,57,70,.22))}
 .combo svg{filter:drop-shadow(0 4px 5px rgba(40,57,70,.2))}
+.bigCombo .combo svg{width:88px;height:118px}.bigCombo .combo{gap:10px;padding:6px 0}
 #gComboWrap,#gMemo .card{background:#fff}
 .bean.sel{border-color:var(--ink);background:#efeaff}
 .bean.sel svg{transform:scale(.9)}
@@ -64,27 +65,31 @@ input[type=range]{width:100%;height:36px}
 
 <!-- ZAČETEK -->
 <section class="screen on" id="s-start">
-  <h1>Neurobeans – test počepa</h1>
-  <p class="muted">Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi prave (3–5, nastaviš spodaj), telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.</p>
+  <h1>Neurobeans – test vaj</h1>
+  <p class="muted" id="intro"></p>
   <div class="card">
+    <label for="exercise">Vaja</label>
+    <select id="exercise" style="margin-bottom:12px"><option value="squat" selected>Počep (DOSEŽKAR)</option><option value="plank">Plank</option></select>
     <label for="note">Kdo testira in kako (za posnetek)</label>
     <input type="text" id="note" placeholder="npr. Gregor, desna roka, normalni počepi">
     <div class="row" style="margin-top:12px">
       <div><label for="rounds">Krogov</label>
-        <select id="rounds"><option>3</option><option selected>5</option><option>10</option><option>20</option><option>40</option></select></div>
+        <select id="rounds"><option>3</option><option selected>5</option><option>10</option><option>20</option><option>40</option><option value="999">dokler zdržim</option></select></div>
       <div><label for="nBeans">Fižolčkov v kombinaciji</label>
         <select id="nBeans"><option value="3">3 (mlajši otroci)</option><option value="4">4</option><option value="5" selected>5</option></select></div>
-      <div><label for="memo">Pomnjenje</label>
+      <div class="onlySquat"><label for="memo">Pomnjenje</label>
         <select id="memo"><option value="10" selected>10 s</option><option value="20">20 s</option><option value="40">40 s</option></select></div>
     </div>
-    <label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
+    <label for="flash" style="margin-top:12px">Prikaz kombinacije</label>
+    <select id="flash"><option value="stand" class="onlySquat" selected>ves čas, ko je telefon na mizi</option><option value="1">1 s na začetku kroga</option><option value="2">2 s na začetku kroga</option><option value="3">3 s na začetku kroga</option><option value="5">5 s na začetku kroga</option></select>
+    <label class="onlySquat" style="margin-top:8px;font-weight:600"><input type="checkbox" id="newEach"> Nova kombinacija vsak krog</label>
+    <div class="onlySquat"><label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
     <select id="where"><option value="table" selected>položi na tla, nato nazaj na mizo (priporočeno)</option><option value="hand">drži v roki</option></select>
-    <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="showStand" checked> Kombinacija vidna, ko stojim</label>
-    <label style="margin-top:6px;font-weight:600"><input type="checkbox" id="showCombo"> Kombinacija vidna tudi v počepu</label>
+    <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="showCombo"> Kombinacija vidna tudi v počepu</label></div>
   </div>
   <div id="sensorWarn" class="warn hidden"></div>
   <button class="big" id="btnGame">Začni igro</button>
-  <button class="sec" id="btnSensors">Samo senzorji (stoji / v počepu)</button>
+  <button class="sec" id="btnSensors">Samo senzorji</button>
   <button class="sec" id="btnGuided">Snemanje z navodili (≈ 2 min, za uglaševanje)</button>
   <p class="muted" id="sensorInfo"></p>
 </section>
@@ -95,12 +100,12 @@ input[type=range]{width:100%;height:36px}
   <div class="status st-STOJI" id="gStatus">STOJI</div>
   <div id="gComboWrap" class="card hidden"><p class="muted" style="text-align:center;margin-bottom:6px">Prava kombinacija</p><div class="combo" id="gCombo"></div></div>
   <div id="gMemo" class="hidden">
-    <p class="msg">Zapomni si kombinacijo</p>
+    <p class="msg" id="gMemoMsg">Zapomni si kombinacijo</p>
     <div class="card"><div class="combo" id="gMemoCombo"></div></div>
     <div class="count" id="gCount">10</div>
   </div>
   <div id="gPrep" class="hidden">
-    <p class="msg">Pred začetkom položi telefon na mizo in klikni PRIČNI.</p>
+    <p class="msg" id="gPrepMsg">Pred začetkom položi telefon na mizo in klikni PRIČNI.</p>
     <button class="big" id="btnBegin">Prični</button>
     <p class="muted" id="gPrepWait" style="text-align:center"></p>
   </div>
@@ -112,6 +117,7 @@ input[type=range]{width:100%;height:36px}
   <div id="gEarly" class="hidden"><p class="msg">Vstal si prezgodaj –<br>nazaj v počep</p><p class="muted" style="text-align:center">Že izbrani fižolčki ostanejo izbrani.</p></div>
   <div id="gStand" class="hidden">
     <div class="verdict" id="gVerdict">✓</div>
+    <div class="card hidden" id="gRight"><p class="muted" style="text-align:center;margin-bottom:6px">Prava kombinacija je bila</p><div class="combo" id="gRightCombo"></div></div>
     <button class="big" id="btnNext">Naslednji krog</button>
   </div>
   <div class="row"><button class="sec" id="btnStop">Končaj</button></div>
@@ -120,7 +126,7 @@ input[type=range]{width:100%;height:36px}
 <!-- REZULTAT -->
 <section class="screen" id="s-result">
   <h1>Rezultat</h1>
-  <div class="card"><table><thead><tr><th>Krog</th><th class="n">Čas</th><th>Kombinacija</th><th class="n">Prezgodaj</th></tr></thead><tbody id="rBody"></tbody></table></div>
+  <div class="card"><table><thead><tr><th>Krog</th><th class="n">Čas</th><th>Kombinacija</th><th class="n" id="rCol">Prezgodaj</th></tr></thead><tbody id="rBody"></tbody></table></div>
   <p id="rSum" class="muted"></p>
   <button class="big" id="btnSave1">Shrani posnetek</button>
   <button class="sec" id="btnAgain">Nov test</button>
@@ -132,7 +138,7 @@ input[type=range]{width:100%;height:36px}
   <div class="status st-STOJI" id="cCue" style="font-size:40px;padding:40px 16px">STOJ MIRNO</div>
   <p class="msg" id="cNext"></p>
   <div class="status st-STOJI" id="cDet" style="font-size:20px;padding:10px">STOJI</div>
-  <p class="muted" style="text-align:center">Telefon drži, kot bi ga v igri. Sledi napisom.</p>
+  <p class="muted" style="text-align:center" id="cHint">Telefon drži, kot bi ga v igri. Sledi napisom.</p>
   <button class="big hidden" id="btnSave3">Shrani posnetek</button>
   <button class="sec" id="btnBack2">Prekini</button>
 </section>
@@ -352,6 +358,129 @@ input[type=range]{width:100%;height:36px}
 
 </script>
 <script>
+// Način "plank": telefon leži na tleh ob eni roki, oseba ga prestavi k drugi roki.
+// Zaznamo: leži -> se premika -> spet leži. Med premikom integriramo pospešek v 3D
+// (z žiroskopom ga vrtimo v koordinatni sistem ob začetku premika), na koncu je hitrost
+// zagotovo 0 -> popravek lezenja (disp = p - v*T/2). Šteje vodoravna razdalja.
+// Premik >= minMove = "prestavljen", manjši (dotik, sunek) = "sunek" in se ne šteje.
+// Za igro: shown 'STOJI' = telefon leži, 'SPUSCA' = telefon se premika.
+(function (root) {
+  const D2R = Math.PI / 180;
+  function createPlankDetector(opts) {
+    const o = Object.assign({
+      lieTilt: 35,        // ° – največji odklon od vodoravne, da telefon "leži"
+      lieWindow: 0.4,     // s – okno za mirovanje
+      lieMean: 0.15,      // m/s² – povprečni |pospešek| pri ležanju
+      lieMax: 0.8,        // m/s² – največji sunek pri ležanju (dotik zaslona na tleh je lahko močnejši)
+      minMove: 0.15,      // m – vodoravni premik, ki šteje kot prestavitev k drugi roki
+      maxCarry: 8,        // s – daljši premik zavržemo (telefon je nekdo pobral)
+      fallbackDur: 0.5,   // s – brez ločene gravitacije: dovolj dolg premik ...
+      fallbackPeak: 1.2,  // m/s² – ... z dovolj močnim sunkom šteje kot prestavitev
+      gravityTau: 0.5,
+      thresholdDown: 0.15, thresholdUp: 0.15 // za graf
+    }, opts || {});
+    const s = { state: 'STOJI', shown: 'STOJI', level: 'NEZNANO', squats: 0, moves: 0, lying: false, carrying: false,
+      carryStart: 0, still: false, tilt: 90, aV: 0, mean: 0, noLinear: false, lastT: null, g: null, gLie: 9.81,
+      R: null, v: [0, 0, 0], p: [0, 0, 0], v0: [0, 0, 0], p0: [0, 0, 0], peak: 0, gStart: [0, 0, 1], last: null };
+    const buf = []; const events = [];
+    const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
+    const setShown = (t, sh) => { if (s.shown !== sh) { s.shown = sh; emit(t, 'shown', { shown: sh }); } };
+    const I3 = () => [1, 0, 0, 0, 1, 0, 0, 0, 1];
+    const mulv = (R, a) => [R[0] * a[0] + R[1] * a[1] + R[2] * a[2], R[3] * a[0] + R[4] * a[1] + R[5] * a[2], R[6] * a[0] + R[7] * a[1] + R[8] * a[2]];
+    function rotStep(R, w, dt) { // R <- R * exp([w]x dt) (Rodrigues)
+      const th = Math.hypot(w[0], w[1], w[2]) * dt; if (th < 1e-9) return R;
+      const k = [w[0] * dt / th, w[1] * dt / th, w[2] * dt / th], c = Math.cos(th), sn = Math.sin(th), C = 1 - c;
+      const E = [c + k[0] * k[0] * C, k[0] * k[1] * C - k[2] * sn, k[0] * k[2] * C + k[1] * sn,
+                 k[1] * k[0] * C + k[2] * sn, c + k[1] * k[1] * C, k[1] * k[2] * C - k[0] * sn,
+                 k[2] * k[0] * C - k[1] * sn, k[2] * k[1] * C + k[0] * sn, c + k[2] * k[2] * C];
+      const M = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) M[i * 3 + j] = R[i * 3] * E[j] + R[i * 3 + 1] * E[3 + j] + R[i * 3 + 2] * E[6 + j];
+      return M;
+    }
+    function integrate(b, dt) {
+      s.R = rotStep(s.R, b.w, dt);
+      const a = mulv(s.R, b.lin);
+      for (let i = 0; i < 3; i++) { s.v[i] += a[i] * dt; s.p[i] += s.v[i] * dt; }
+      const a0 = b.lin; // brez popravka vrtenja – za primerjavo v posnetku
+      for (let i = 0; i < 3; i++) { s.v0[i] += a0[i] * dt; s.p0[i] += s.v0[i] * dt; }
+      if (b.mag > s.peak) s.peak = b.mag;
+    }
+    function horiz(p, v, T) {
+      const d = p.map((x, i) => x - v[i] * T / 2);
+      const gz = s.gStart, up = d[0] * gz[0] + d[1] * gz[1] + d[2] * gz[2];
+      const hz = d.map((x, i) => x - up * gz[i]);
+      return { dist: Math.hypot(hz[0], hz[1], hz[2]), up: Math.abs(up) };
+    }
+
+    function update(t, a, ag, rr) {
+      if (s.lastT === null) s.lastT = t;
+      let dt = t - s.lastT; s.lastT = t;
+      if (!(dt > 0) || dt > 0.2) dt = 1 / 60;
+      if (!ag || !isFinite(ag.x)) return s;
+      let lin, gv;
+      if (a && isFinite(a.x)) { lin = a; gv = { x: ag.x - a.x, y: ag.y - a.y, z: ag.z - a.z }; }
+      else {
+        s.noLinear = true;
+        const k = Math.min(1, dt / o.gravityTau);
+        s.g = s.g ? { x: s.g.x + k * (ag.x - s.g.x), y: s.g.y + k * (ag.y - s.g.y), z: s.g.z + k * (ag.z - s.g.z) } : { x: ag.x, y: ag.y, z: ag.z };
+        gv = s.g; lin = { x: ag.x - gv.x, y: ag.y - gv.y, z: ag.z - gv.z };
+      }
+      const gn = Math.hypot(gv.x, gv.y, gv.z) || 9.81, agn = Math.hypot(ag.x, ag.y, ag.z);
+      s.tilt = Math.acos(Math.min(1, Math.abs(s.noLinear ? ag.z : gv.z) / (s.noLinear ? agn : gn))) / D2R;
+      const mag = s.noLinear ? Math.abs(agn - s.gLie) : Math.hypot(lin.x, lin.y, lin.z);
+      s.aV = mag;
+      const w = rr && isFinite(rr.beta) ? [(+rr.beta || 0) * D2R, (+rr.gamma || 0) * D2R, (+rr.alpha || 0) * D2R] : [0, 0, 0];
+      const b = { t, lin: [lin.x, lin.y, lin.z], w, mag, tilt: s.tilt, g: [gv.x / gn, gv.y / gn, gv.z / gn] };
+      buf.push(b);
+      while (buf.length && buf[0].t < t - o.lieWindow) buf.shift();
+      let sum = 0, mx = 0, tmax = 0; for (const x of buf) { sum += x.mag; if (x.mag > mx) mx = x.mag; if (x.tilt > tmax) tmax = x.tilt; }
+      s.mean = sum / (buf.length || 1);
+      const full = buf.length && t - buf[0].t >= o.lieWindow * 0.9;
+      const lying = full && s.mean < o.lieMean && mx < o.lieMax && tmax <= o.lieTilt;
+      s.still = lying;
+
+      if (lying) {
+        s.gLie = s.gLie + 0.1 * (agn - s.gLie);
+        if (s.carrying) {
+          s.carrying = false;
+          const T = t - s.carryStart;
+          const h = horiz(s.p, s.v, T), h0 = horiz(s.p0, s.v0, T);
+          const info = { dist: +h.dist.toFixed(3), up: +h.up.toFixed(3), distNoRot: +h0.dist.toFixed(3), dur: +T.toFixed(2), peak: +s.peak.toFixed(2) };
+          s.last = info;
+          if (T > o.maxCarry) emit(t, 'discard', info);
+          else {
+            const moved = s.noLinear ? (T >= o.fallbackDur && s.peak >= o.fallbackPeak) : h.dist >= o.minMove;
+            emit(t, 'carry', info);
+            if (moved) { s.moves++; s.squats = s.moves; emit(t, 'move', Object.assign({ n: s.moves }, info)); }
+            else emit(t, 'nudge', info);
+          }
+        }
+        if (s.level === 'NEZNANO') { s.level = 'LEZI'; emit(t, 'level', { level: 'LEZI' }); }
+        s.gStart = b.g; // smer navpičnice, dokler leži
+        s.lying = true;
+        setShown(t, 'STOJI');
+      } else {
+        if (s.lying || !s.carrying) {
+          // začetek premika: integriramo od začetka okna (gib se je začel malo prej)
+          s.carrying = true; s.R = I3(); s.v = [0, 0, 0]; s.p = [0, 0, 0]; s.v0 = [0, 0, 0]; s.p0 = [0, 0, 0]; s.peak = 0;
+          s.gStart = buf[0] ? buf[0].g : b.g;
+          let pt = buf[0] ? buf[0].t : t; s.carryStart = pt;
+          for (const x of buf) { integrate(x, x.t - pt); pt = x.t; }
+        } else integrate(b, dt);
+        s.lying = false;
+        if (s.level !== 'NEZNANO') setShown(t, 'SPUSCA');
+      }
+      return s;
+    }
+    function current() { if (!s.carrying) return 0; return Math.hypot(s.p[0], s.p[1], s.p[2]); }
+    function reset() { s.state = s.shown = 'STOJI'; s.level = 'NEZNANO'; s.moves = s.squats = 0; s.carrying = false; s.last = null; buf.length = 0; events.length = 0; }
+    function height() { return -current(); }
+    return { update, reset, height, state: s, events, opts: o };
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createPlankDetector }; else root.PlankDetector = { createPlankDetector };
+})(this);
+
+</script>
+<script>
 {
 const $ = id => document.getElementById(id);
 const COLORS = ["#F7FE60","#FBBC5D","#E23E34","#A394E7","#0571D3","#B6E678","#EBD7A0","#FFFFFF","#C7D8DF","#283946"];
@@ -370,8 +499,23 @@ function logEvent(type, data) { rec.events.push(Object.assign({ t: +((now() - (t
 
 // ---------- detektor ----------
 let det = SquatDetector.createDetector({ onEvent: e => onDet(e) });
-function makeDetector() { const w = $('where').value; det = w === 'table' ? TableDetector.createTableDetector({ onEvent: e => onDet(e) }) : SquatDetector.createDetector({ onEvent: e => onDet(e) }); return w; }
-const TABLE = () => $('where').value === 'table';
+function makeDetector() {
+  if (PLANK()) { det = PlankDetector.createPlankDetector({ onEvent: e => onDet(e) }); return 'plank'; }
+  const w = $('where').value; det = w === 'table' ? TableDetector.createTableDetector({ onEvent: e => onDet(e) }) : SquatDetector.createDetector({ onEvent: e => onDet(e) }); return w;
+}
+const PLANK = () => $('exercise').value === 'plank';
+const TABLE = () => !PLANK() && $('where').value === 'table';
+const FLASH = () => $('flash').value === 'stand' ? 0 : +$('flash').value;
+function syncSettings() {
+  const pl = PLANK();
+  document.querySelectorAll('.onlySquat').forEach(el => el.classList.toggle('hidden', pl));
+  if (pl && $('flash').value === 'stand') $('flash').value = '2';
+  if (pl && !syncSettings.plankSet) { $('nBeans').value = '3'; $('rounds').value = '999'; syncSettings.plankSet = true; }
+  $('intro').textContent = pl
+    ? 'Plank: telefon leži na tleh ob eni roki. Za 2 s se pokaže kombinacija – zapomni si jo. Z isto roko prestavi telefon k drugi roki, prenesi težo in z drugo roko izberi prave fižolčke. Klikni »Naslednji krog« in telefon prestavi nazaj. Tako levo–desno, dokler zdržiš. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.'
+    : 'Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi prave (3–5, nastaviš spodaj), telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.';
+}
+$('exercise').addEventListener('change', syncSettings); syncSettings();
 
 function onMotion(ev) {
   const t = ev.timeStamp ? ev.timeStamp / 1000 : now();
@@ -383,15 +527,15 @@ function onMotion(ev) {
   if (lastEvtT !== null) { const dt = t - lastEvtT; if (dt > 0 && dt < 1) rateEma = rateEma ? rateEma * 0.95 + (1 / dt) * 0.05 : 1 / dt; }
   lastEvtT = t;
   const tt = +(now() - t0).toFixed(4);
-  det.update(tt, A, AG);
+  det.update(tt, A, AG, rr);
   const r = x => x == null ? '' : +(+x).toFixed(4);
-  rec.rows.push([tt, r(A && A.x), r(A && A.y), r(A && A.z), r(AG && AG.x), r(AG && AG.y), r(AG && AG.z), r(rr.alpha), r(rr.beta), r(rr.gamma), r(ev.interval), +det.height().toFixed(4), det.state.state === 'V_POCEPU' ? 1 : 0]);
+  rec.rows.push([tt, r(A && A.x), r(A && A.y), r(A && A.z), r(AG && AG.x), r(AG && AG.y), r(AG && AG.z), r(rr.alpha), r(rr.beta), r(rr.gamma), r(ev.interval), +det.height().toFixed(4), (PLANK() ? det.state.carrying : det.state.state === 'V_POCEPU') ? 1 : 0]);
   hist.push([tt, det.height(), det.state.tilt]);
 }
 
 async function startSensors() {
   const where = makeDetector();
-  rec.meta = { started: new Date().toISOString(), where, note: $('note').value, ua: navigator.userAgent, screen: [screen.width, screen.height], config: det.opts, sim: SIM };
+  rec.meta = { started: new Date().toISOString(), exercise: $('exercise').value, where, note: $('note').value, ua: navigator.userAgent, screen: [screen.width, screen.height], config: det.opts, sim: SIM };
   rec.events = []; rec.rows = []; t0 = now();
   if (SIM) { startSim(); return true; }
   if (typeof DeviceMotionEvent === 'undefined') { showWarn('Ta brskalnik ne podpira senzorjev gibanja. Odpri stran na telefonu (Chrome ali Safari).'); return false; }
@@ -412,23 +556,25 @@ function startSim() {
   // simulator: v roki (zibanje) ali leži (popoln mir); v roki pokonci ~65°, v počepu ~10°
   let tt = 0, tilt = 65, lying = false;
   setInterval(() => {
-    let aV = 0, jit = 0.1;
+    let aV = 0, aH = 0, jit = 0.1;
     if (simQueue.length) {
       const m = simQueue[0];
-      if (m.lie !== undefined) { lying = m.lie; tilt = m.lie ? 2 : 50; simQueue.shift(); }
+      if (m.lie !== undefined) { lying = m.lie; tilt = m.lie ? 2 : (PLANK() ? 2 : 50); simQueue.shift(); }
       else if (m.hold) { lying = false; if (++m.k >= m.hold * 60) simQueue.shift(); jit = 0.3; }
+      else if (m.dzH !== undefined) { lying = false; const tau = m.k / (m.T * 60); aH = m.dzH * (60 * tau - 180 * tau ** 2 + 120 * tau ** 3) / (m.T * m.T); tilt = 2; jit = 0.2; if (++m.k >= m.T * 60) simQueue.shift(); }
       else { lying = false; const tau = m.k / (m.T * 60); aV = m.dz * (60 * tau - 180 * tau ** 2 + 120 * tau ** 3) / (m.T * m.T); tilt = m.from + (m.to - m.from) * tau; jit = 0.3; if (++m.k >= m.T * 60) { tilt = m.to; simQueue.shift(); } }
     } else if (!lying) jit = 0.15;
     if (lying) jit = 0.01;
     const r = tilt * Math.PI / 180, u = [0, Math.sin(r), Math.cos(r)];
     const noise = () => (Math.random() - .5) * jit;
-    const lin = u.map(x => x * aV + noise());
+    const lin = u.map(x => x * aV + noise()); lin[0] += aH;
     onMotion({ timeStamp: (tt += 1000 / 60), acceleration: { x: lin[0], y: lin[1], z: lin[2] }, accelerationIncludingGravity: { x: lin[0] + 9.81 * u[0], y: lin[1] + 9.81 * u[1], z: lin[2] + 9.81 * u[2] }, rotationRate: {}, interval: 16 });
   }, 1000 / 60);
   window.simSquat = () => simQueue.push({ dz: -0.45, T: 1.0, k: 0, from: 65, to: 10 });
   window.simStand = () => simQueue.push({ dz: 0.45, T: 1.0, k: 0, from: 10, to: 65 });
   window.simLie = () => simQueue.push({ lie: true });
   window.simToFloor = () => simQueue.push({ hold: 0.5, k: 0 }, { dz: -0.75, T: 1.5, k: 0, from: 40, to: 3 }, { lie: true });
+  window.simMove = (x = 0.45) => simQueue.push({ lie: false }, { dzH: x, T: 1.0, k: 0, from: 2, to: 2 }, { lie: true });
   window.simToTable = () => simQueue.push({ hold: 0.5, k: 0 }, { dz: 0.75, T: 1.5, k: 0, from: 40, to: 3 }, { lie: true });
 }
 
@@ -436,36 +582,52 @@ function startSim() {
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); window.scrollTo(0, 0); }
 const LABEL = { STOJI: 'STOJI', SPUSCA: 'SPUŠČA SE', V_POCEPU: 'V POČEPU', DVIGUJE: 'DVIGUJE SE' };
 const LABEL_TABLE = { STOJI: 'NA MIZI', SPUSCA: 'NESEM NA TLA', V_POCEPU: 'NA TLEH', DVIGUJE: 'NESEM NA MIZO' };
-function setStatus(el, shown, extra) { const L = TABLE() ? LABEL_TABLE : LABEL; el.className = 'status st-' + shown; el.innerHTML = L[shown] + (extra ? `<small>${extra}</small>` : ''); }
+const LABEL_PLANK = { STOJI: 'TELEFON LEŽI', SPUSCA: 'PRESTAVLJAM', V_POCEPU: 'TELEFON LEŽI', DVIGUJE: 'PRESTAVLJAM' };
+function setStatus(el, shown, extra) { const L = PLANK() ? LABEL_PLANK : TABLE() ? LABEL_TABLE : LABEL; el.className = 'status st-' + shown; el.innerHTML = L[shown] + (extra ? `<small>${extra}</small>` : ''); }
 
 // ---------- igra ----------
-const g = { on: false, phase: 'idle', round: 0, rounds: 5, target: [], order: [], sel: [], early: 0, start: 0, results: [], timer: null };
+const g = { on: false, phase: 'idle', round: 0, rounds: 5, target: [], order: [], sel: [], early: 0, start: 0, results: [], timer: null, flashUntil: 0, moved: false, lastMove: null };
 const N = () => g.n || 5;
+const ENDLESS = () => g.rounds >= 999;
 function pickCombo() { const idx = [...Array(10).keys()].sort(() => Math.random() - .5); return idx.slice(0, N()).sort((a, b) => a - b); }
 function renderCombo(el, combo) { el.innerHTML = combo.map(i => beanSvg(COLORS[i])).join(''); }
+function comboVisible(p) {
+  if (PLANK() || p === 'memo' || p === 'idle' || p === 'prep') return false;
+  if ($('showCombo').checked) return true;
+  const standing = p === 'go' || p === 'done' || p === 'early';
+  if (!FLASH()) return standing;                 // ves čas, ko je telefon na mizi
+  return now() < g.flashUntil;                    // le nekaj sekund na začetku kroga
+}
+function refreshCombo() { $('gComboWrap').classList.toggle('hidden', !comboVisible(g.phase)); }
 function phase(p) {
   g.phase = p;
-  $('gMemo').classList.toggle('hidden', p !== 'memo');
-  $('gGo').classList.toggle('hidden', p !== 'go');
+  const pl = PLANK();
+  $('gMemo').classList.toggle('hidden', !(p === 'memo' || p === 'show'));
+  $('gCount').classList.toggle('hidden', p === 'show');
+  $('gMemo').classList.toggle('bigCombo', pl);
+  $('gRight').classList.toggle('bigCombo', pl);
+  $('gMemoMsg').textContent = 'Zapomni si kombinacijo';
+  $('gGo').classList.toggle('hidden', !(p === 'go' || p === 'move'));
   $('gPrep').classList.toggle('hidden', p !== 'prep');
-  $('gGo').querySelector('.msg').textContent = TABLE() ? 'Vzemi telefon, pojdi v počep in ga položi na tla' : 'Pojdi v počep';
+  $('gPrepMsg').textContent = pl ? 'Položi telefon na tla ob eni roki, pojdi v plank in klikni PRIČNI.' : 'Pred začetkom položi telefon na mizo in klikni PRIČNI.';
+  $('gGo').querySelector('.msg').textContent = pl ? 'Prestavi telefon k drugi roki' : TABLE() ? 'Vzemi telefon, pojdi v počep in ga položi na tla' : 'Pojdi v počep';
   $('gEarly').querySelector('.msg').innerHTML = TABLE() ? `Telefon je na mizi, a nisi izbral vseh ${N()} –<br>nesi ga nazaj na tla` : 'Vstal si prezgodaj –<br>nazaj v počep';
   $('gPick').classList.toggle('hidden', p !== 'pick');
   $('gEarly').classList.toggle('hidden', p !== 'early');
   $('gStand').classList.toggle('hidden', p !== 'done');
-  const standing = p === 'go' || p === 'done' || p === 'early';
+  $('gRight').classList.toggle('hidden', !(pl && p === 'done' && !g.lastOk));
   $('gStatus').classList.toggle('hidden', p === 'prep');
-  $('gComboWrap').classList.toggle('hidden', !(p !== 'memo' && p !== 'idle' && p !== 'prep' && ($('showCombo').checked || ($('showStand').checked && standing))));
+  refreshCombo();
   logEvent('phase', { phase: p, round: g.round });
 }
 async function startGame() {
   if (!(await startSensors())) return;
   g.on = true; g.n = +$('nBeans').value; g.rounds = +$('rounds').value; g.round = 0; g.results = []; g.target = pickCombo();
-  rec.meta.target = g.target.map(i => NAMES[i]); rec.meta.nBeans = g.n; rec.meta.mode = 'igra'; rec.meta.showStand = $('showStand').checked; rec.meta.showCombo = $('showCombo').checked;
+  Object.assign(rec.meta, { target: g.target.map(i => NAMES[i]), nBeans: g.n, mode: 'igra', flash: $('flash').value, newEach: PLANK() || $('newEach').checked, showCombo: $('showCombo').checked });
   renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target);
   show('s-game'); setStatus($('gStatus'), det.state.shown);
-  $('gRound').textContent = `Krog 0/${g.rounds}`;
-  if (TABLE()) { phase('prep'); $('gPrepWait').textContent = ''; return; }
+  $('gRound').textContent = ENDLESS() ? 'Krog 0' : `Krog 0/${g.rounds}`;
+  if (TABLE() || PLANK()) { phase('prep'); $('gPrepWait').textContent = ''; return; }
   startMemo();
 }
 function startMemo() {
@@ -474,25 +636,43 @@ function startMemo() {
   g.timer = setInterval(() => { left--; $('gCount').textContent = left; if (left <= 0) { clearInterval(g.timer); nextRound(); } }, 1000);
 }
 $('btnBegin').addEventListener('click', () => {
-  // telefon mora ležati na mizi – počakamo, da se umiri, in to vzamemo za višino mize
+  // telefon mora ležati pri miru (miza oz. tla pri planku)
   det.reset(); logEvent('begin');
-  $('gPrepWait').textContent = 'Pusti telefon ležati na mizi …';
+  $('gPrepWait').textContent = PLANK() ? 'Pusti telefon ležati …' : 'Pusti telefon ležati na mizi …';
   const wait = setInterval(() => {
-    if (det.state.level === 'MIZA' && det.state.still) { clearInterval(wait); startMemo(); }
-    else if (!det.state.still) $('gPrepWait').textContent = 'Telefon naj leži na mizi pri miru …';
+    const ready = PLANK() ? det.state.level === 'LEZI' && det.state.still : det.state.level === 'MIZA' && det.state.still;
+    if (ready) { clearInterval(wait); PLANK() ? nextRound() : startMemo(); }
+    else if (!det.state.still) $('gPrepWait').textContent = 'Telefon naj leži pri miru …';
   }, 200);
 });
 setInterval(() => { if (g.on && g.round > 0 && g.phase !== 'done') $('gTime').textContent = (now() - g.start).toFixed(1).replace('.', ',') + ' s'; }, 100);
 function nextRound() {
   if (g.round >= g.rounds) return finish();
-  g.round++; g.sel = []; g.early = 0; g.start = now();
+  g.round++; g.sel = []; g.early = 0; g.start = now(); g.moved = false; g.lastMove = null;
+  if (PLANK() || ($('newEach').checked && g.round > 1)) { g.target = pickCombo(); renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target); logEvent('target', { target: g.target.map(i => NAMES[i]) }); }
   g.order = [...Array(10).keys()]; // stalni vrstni red kot v aplikaciji (4 + 4 + 2)
   $('gBeans').innerHTML = g.order.map(i => `<button class="bean" data-i="${i}" aria-label="${NAMES[i]}">${beanSvg(COLORS[i])}</button>`).join('');
-  $('gRound').textContent = `Krog ${g.round}/${g.rounds}`;
+  $('gRound').textContent = ENDLESS() ? `Krog ${g.round}` : `Krog ${g.round}/${g.rounds}`;
   updatePickMsg();
+  if (PLANK()) {
+    // kombinacija samo FLASH sekund, nato prestavi telefon k drugi roki
+    phase('show'); clearTimeout(g.timer);
+    g.timer = setTimeout(() => { if (g.phase === 'show') phase(g.moved ? 'pick' : 'move'); }, FLASH() * 1000);
+    return;
+  }
+  g.flashUntil = FLASH() && g.round > 1 ? now() + FLASH() : 0; // 1. krog pride takoj po pomnjenju
+  if (FLASH()) setTimeout(refreshCombo, FLASH() * 1000 + 50);
   phase(det.state.state === 'V_POCEPU' && !det.standNow ? 'pick' : 'go');
 }
 function updatePickMsg() { const k = N() - g.sel.length; $('gPickMsg').textContent = k > 0 ? `Izberi ${k} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][k]}` : (TABLE() ? 'Zdaj telefon nesi nazaj na mizo' : 'Zdaj vstani'); }
+function verdict() {
+  const ok = g.sel.slice().sort((a, b) => a - b).join() === g.target.join();
+  g.lastOk = ok; $('gVerdict').textContent = ok ? '✓' : '✗'; $('gVerdict').style.color = ok ? 'var(--ok)' : 'var(--bad)';
+  renderCombo($('gRightCombo'), g.target);
+  $('btnNext').textContent = g.round >= g.rounds ? 'Končaj' : 'Naslednji krog';
+  if (navigator.vibrate) navigator.vibrate(ok ? 40 : [80, 60, 80]);
+  phase('done');
+}
 $('gBeans').addEventListener('click', e => {
   const b = e.target.closest('.bean'); if (!b || g.phase !== 'pick') return;
   const i = +b.dataset.i, k = g.sel.indexOf(i);
@@ -500,41 +680,51 @@ $('gBeans').addEventListener('click', e => {
   else if (g.sel.length < N()) { g.sel.push(i); b.classList.add('sel'); }
   logEvent('tap', { bean: NAMES[i], selected: g.sel.length });
   updatePickMsg();
+  if (PLANK() && g.sel.length === N()) setTimeout(() => { if (g.phase === 'pick') verdict(); }, 250);
 });
 function onDet(e) {
   logEvent('det_' + e.type, e);
-  if (e.type === 'state' && navigator.vibrate) navigator.vibrate(e.state === 'V_POCEPU' ? 60 : [30, 40, 30]);
-  if (e.type === 'shown' || e.type === 'state') {
+  const pl = PLANK();
+  if (!pl && e.type === 'state' && navigator.vibrate) navigator.vibrate(e.state === 'V_POCEPU' ? 60 : [30, 40, 30]);
+  if (e.type === 'shown' || e.type === 'state' || e.type === 'move') {
+    const cnt = pl ? 'prestavitev: ' + det.state.moves + (det.state.last ? ` · zadnji premik ${Math.round(det.state.last.dist * 100)} cm` : '') : 'počepov: ' + det.state.squats;
     setStatus($('gStatus'), det.state.shown);
-    setStatus($('sStatus'), det.state.shown, 'počepov: ' + det.state.squats);
-    setStatus($('cDet'), det.state.shown, 'zaznano · počepov: ' + det.state.squats);
+    setStatus($('sStatus'), det.state.shown, cnt);
+    setStatus($('cDet'), det.state.shown, 'zaznano · ' + cnt);
   }
-  if (!g.on || e.type !== 'state') return;
+  if (!g.on) return;
+  if (pl) {
+    if (e.type !== 'move') return;
+    if (navigator.vibrate) navigator.vibrate(60);
+    if (g.phase === 'move') { g.lastMove = e; phase('pick'); }
+    else if (g.phase === 'show') { g.lastMove = e; g.moved = true; }
+    return;
+  }
+  if (e.type !== 'state') return;
   if (e.state === 'V_POCEPU' && (g.phase === 'go' || g.phase === 'early')) phase('pick');
   else if (e.state === 'STOJI' && g.phase === 'pick') {
     if (g.sel.length < N()) { g.early++; phase('early'); }
-    else {
-      const ok = g.sel.slice().sort((a, b) => a - b).join() === g.target.join();
-      g.lastOk = ok; $('gVerdict').textContent = ok ? '✓' : '✗'; $('gVerdict').style.color = ok ? 'var(--ok)' : 'var(--bad)';
-      $('btnNext').textContent = g.round >= g.rounds ? 'Končaj' : 'Naslednji krog';
-      phase('done');
-    }
+    else verdict();
   }
 }
 $('btnNext').addEventListener('click', () => {
   if (g.phase !== 'done') return;
   const time = now() - g.start;
-  g.results.push({ round: g.round, time: +time.toFixed(2), ok: g.lastOk, early: g.early, picked: g.sel.map(i => NAMES[i]) });
-  logEvent('round', g.results[g.results.length - 1]);
+  const r = { round: g.round, time: +time.toFixed(2), ok: g.lastOk, early: g.early, picked: g.sel.map(i => NAMES[i]), target: g.target.map(i => NAMES[i]) };
+  if (PLANK() && g.lastMove) r.moveCm = Math.round(g.lastMove.dist * 100);
+  g.results.push(r);
+  logEvent('round', r);
   if (det.standNow) det.standNow();
   nextRound();
 });
 function finish() {
-  g.on = false; clearInterval(g.timer); phase('idle');
+  g.on = false; clearInterval(g.timer); clearTimeout(g.timer); phase('idle');
   rec.meta.results = g.results;
-  $('rBody').innerHTML = g.results.map(r => `<tr><td>${r.round}</td><td class="n">${r.time.toFixed(1).replace('.', ',')} s</td><td>${r.ok ? '✓ pravilna' : '✗ napačna'}</td><td class="n">${r.early}</td></tr>`).join('');
+  const pl = PLANK();
+  $('rCol').textContent = pl ? 'Premik' : 'Prezgodaj';
+  $('rBody').innerHTML = g.results.map(r => `<tr><td>${r.round}</td><td class="n">${r.time.toFixed(1).replace('.', ',')} s</td><td>${r.ok ? '✓ pravilna' : '✗ napačna'}</td><td class="n">${pl ? (r.moveCm != null ? r.moveCm + ' cm' : '–') : r.early}</td></tr>`).join('');
   const ok = g.results.filter(r => r.ok).length, tot = g.results.reduce((s, r) => s + r.time, 0);
-  $('rSum').textContent = g.results.length ? `Pravilnih: ${ok}/${g.results.length} · skupni čas ${tot.toFixed(1).replace('.', ',')} s · zaznanih počepov: ${det.state.squats}` : 'Ni odigranih krogov.';
+  $('rSum').textContent = g.results.length ? `Pravilnih: ${ok}/${g.results.length} · skupni čas ${tot.toFixed(1).replace('.', ',')} s · ` + (pl ? `zaznanih prestavitev: ${det.state.moves}` : `zaznanih počepov: ${det.state.squats}`) : 'Ni odigranih krogov.';
   show('s-result');
 }
 $('btnStop').addEventListener('click', finish);
@@ -542,11 +732,13 @@ $('btnAgain').addEventListener('click', () => location.reload());
 
 // ---------- samo senzorji ----------
 const hist = [];
-$('btnSensors').addEventListener('click', async () => { if (!(await startSensors())) return; rec.meta.mode = 'senzorji'; show('s-sensors'); setStatus($('sStatus'), det.state.shown, 'počepov: 0'); draw(); });
+$('btnSensors').addEventListener('click', async () => { if (!(await startSensors())) return; rec.meta.mode = 'senzorji'; show('s-sensors'); setStatus($('sStatus'), det.state.shown, PLANK() ? 'prestavitev: 0' : 'počepov: 0');
+  if (PLANK()) { $('thr').min = 5; $('thr').max = 40; $('thr').value = 15; $('thrVal').textContent = 15; document.querySelector('label[for=thr]').firstChild.textContent = 'Najmanjši premik: '; }
+  draw(); });
 $('btnGame').addEventListener('click', startGame);
 $('btnBack').addEventListener('click', () => location.reload());
 $('btnReset').addEventListener('click', () => { det.reset(); hist.length = 0; logEvent('reset'); setStatus($('sStatus'), 'STOJI', 'počepov: 0'); });
-$('thr').addEventListener('input', e => { const v = +e.target.value; $('thrVal').textContent = v; det.opts.thresholdDown = det.opts.thresholdUp = v / 100; logEvent('threshold', { cm: v }); });
+$('thr').addEventListener('input', e => { const v = +e.target.value; $('thrVal').textContent = v; det.opts.thresholdDown = det.opts.thresholdUp = v / 100; if (PLANK()) det.opts.minMove = v / 100; logEvent('threshold', { cm: v }); });
 
 function draw() {
   const c = $('chart'), W = c.clientWidth, H = c.clientHeight, dpr = devicePixelRatio || 1;
@@ -568,7 +760,7 @@ function draw() {
 }
 
 // ---------- vodeno snemanje (oznake za uglaševanje) ----------
-const CUES = [
+const CUES_SQUAT = [
   ['STOJ MIRNO', 'stand', 5],
   ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5], ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5],
   ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5], ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5],
@@ -579,13 +771,29 @@ const CUES = [
   ['SKLONI SE NAPREJ (brez počepa)', 'fake_bend', 3], ['ZRAVNAJ SE', 'fake_unbend', 3],
   ['HODI NA MESTU', 'fake_walk', 5], ['STOJ MIRNO', 'stand', 3]
 ];
+const CUES_PLANK = [
+  ['TELEFON LEŽI – PLANK', 'lie', 5],
+  ['PRESTAVI NA DRUGO STRAN', 'move', 4], ['IZBIRAJ (tapkaj po zaslonu)', 'tap', 5],
+  ['PRESTAVI NA DRUGO STRAN', 'move', 4], ['IZBIRAJ (tapkaj po zaslonu)', 'tap', 5],
+  ['POTISNI PO TLEH NA DRUGO STRAN', 'move_slide', 4], ['MIRUJ', 'lie', 3],
+  ['POTISNI PO TLEH NA DRUGO STRAN', 'move_slide', 4], ['MIRUJ', 'lie', 3],
+  ['DVIGNI IN POLOŽI NA DRUGO STRAN', 'move_lift', 4], ['MIRUJ', 'lie', 3],
+  ['DVIGNI IN POLOŽI NA DRUGO STRAN', 'move_lift', 4], ['MIRUJ', 'lie', 3],
+  ['POČASI PRESTAVI', 'move_slow', 6], ['MIRUJ', 'lie', 3],
+  ['HITRO PRESTAVI', 'move_fast', 3], ['MIRUJ', 'lie', 3],
+  ['SAMO MALO POPRAVI TELEFON (za prst)', 'fake_nudge', 4], ['MIRUJ', 'lie', 3],
+  ['MOČNO TAPKAJ PO ZASLONU', 'fake_tap', 5],
+  ['DVIGNI IN POLOŽI NAZAJ NA ISTO MESTO', 'fake_same', 4], ['MIRUJ', 'lie', 3]
+];
 let cueTimer = null;
 $('btnGuided').addEventListener('click', async () => {
   if (!(await startSensors())) return; rec.meta.mode = 'vodeno'; show('s-guided');
+  const CUES = PLANK() ? CUES_PLANK : CUES_SQUAT;
+  $('cHint').textContent = PLANK() ? 'Telefon leži na tleh ob roki, ti si v planku (lahko tudi na kolenih). Sledi napisom.' : 'Telefon drži, kot bi ga v igri. Sledi napisom.';
   let i = 0, left = CUES[0][2];
   const showCue = () => {
     const [txt, lab, dur] = CUES[i]; left = dur;
-    $('cCue').textContent = txt; $('cCue').className = 'status ' + (lab.startsWith('squat') ? 'st-V_POCEPU' : lab.startsWith('fake') ? 'st-SPUSCA' : 'st-STOJI');
+    $('cCue').textContent = txt; $('cCue').className = 'status ' + (lab.startsWith('squat') || lab.startsWith('move') ? 'st-V_POCEPU' : lab.startsWith('fake') ? 'st-SPUSCA' : 'st-STOJI');
     $('cStep').textContent = (i + 1) + '/' + CUES.length; $('cLeft').textContent = left + ' s';
     $('cNext').textContent = CUES[i + 1] ? 'Nato: ' + CUES[i + 1][0].toLowerCase() : '';
     logEvent('cue', { label: lab, text: txt, dur });
