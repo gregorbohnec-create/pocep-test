@@ -80,6 +80,7 @@ input[type=range]{width:100%;height:36px}
   <div id="sensorWarn" class="warn hidden"></div>
   <button class="big" id="btnGame">Začni igro</button>
   <button class="sec" id="btnSensors">Samo senzorji (stoji / v počepu)</button>
+  <button class="sec" id="btnGuided">Snemanje z navodili (≈ 2 min, za uglaševanje)</button>
   <p class="muted" id="sensorInfo"></p>
 </section>
 
@@ -115,6 +116,17 @@ input[type=range]{width:100%;height:36px}
   <button class="sec" id="btnAgain">Nov test</button>
 </section>
 
+<!-- VODENO SNEMANJE -->
+<section class="screen" id="s-guided">
+  <div class="top"><span id="cStep">1/20</span><span id="cLeft">5 s</span></div>
+  <div class="status st-STOJI" id="cCue" style="font-size:40px;padding:40px 16px">STOJ MIRNO</div>
+  <p class="msg" id="cNext"></p>
+  <div class="status st-STOJI" id="cDet" style="font-size:20px;padding:10px">STOJI</div>
+  <p class="muted" style="text-align:center">Telefon drži, kot bi ga v igri. Sledi napisom.</p>
+  <button class="big hidden" id="btnSave3">Shrani posnetek</button>
+  <button class="sec" id="btnBack2">Prekini</button>
+</section>
+
 <!-- SENZORJI -->
 <section class="screen" id="s-sensors">
   <div class="status st-STOJI" id="sStatus">STOJI<small>počepov: 0</small></div>
@@ -136,30 +148,30 @@ input[type=range]{width:100%;height:36px}
 </section>
 
 <script>
-// Prepoznavanje počepa – telefon v roki (različica 4: višina + lega telefona).
-// Iz posnetkov (26. 11. 2026): v počepu otrok/odrasli telefon drži skoraj vodoravno
-// (gleda navzdol), stoje bolj pokonci. Združimo dva znaka:
-//  - kratkotrajna sprememba višine (izgubljajoča integracija navpičnega pospeška, tau 1 s)
-//  - lega telefona: kot med zaslonom in vodoravnico (0° = leži ravno, 90° = pokonci)
-// V POČEPU: (spust >= dropMin v zadnjih `recent` s IN telefon vodoraven <= flatMax°) ALI spust >= strong
-// STOJI:    (dvig >= riseMin v zadnjih `recent` s IN telefon pokonci >= uprightMin°) ALI dvig >= strong
+// Prepoznavanje počepa – telefon v roki (različica 5).
+// Glavni znak je kratkotrajna sprememba višine (izgubljajoča integracija navpičnega pospeška).
+// Lega telefona je samo pomožni znak: če se ob spustu telefon opazno zravna v vodoravno
+// (oz. ob dvigu postavi bolj pokonci), zadošča manjši spust/dvig. Telefon lahko otrok
+// drži vodoravno tudi stoje – zato absolutna lega ni pogoj.
+// Igra po vstajanju pokliče standNow() ob kliku "Naslednji krog": tako se "odboj" roke
+// po vstajanju ne šteje kot nov počep.
 (function (root) {
   const G = 9.81;
   function createDetector(opts) {
     const o = Object.assign({
-      dropMin: 0.12, riseMin: 0.12,   // m – manjši spust/dvig, če se ujema z lego
-      strong: 0.3,                    // m – izrazit spust/dvig šteje tudi brez lege
-      flatMax: 30,                    // ° – telefon "vodoraven" (počep)
-      uprightMin: 45,                 // ° – telefon "pokonci" (stoji)
-      holdTilt: 0.3,                  // s – lega mora trajati vsaj toliko
-      recent: 3.0,                    // s – okno, v katerem iščemo spust/dvig
-      minHold: 1.0,                   // s – najkrajši čas med prehodi
+      dropMin: 0.2,          // m – spust, ki šteje kot počep
+      riseMin: 0.15,         // m – dvig, ki šteje kot vstajanje
+      dropTilt: 0.12,        // m – manjši spust, če se telefon hkrati zravna v vodoravno
+      riseTilt: 0.1,         // m – manjši dvig, če se telefon hkrati postavi pokonci
+      tiltChange: 15,        // ° – sprememba lege, ki šteje kot pomožni znak
+      recent: 3.0,           // s – okno za spust/dvig in primerjavo lege
+      minHold: 1.0,          // s – najkrajši čas med prehodi
       tau: 1.0, gravityTau: 1.5, showMove: 0.08,
-      thresholdDown: 0.12, thresholdUp: 0.12   // za graf
+      thresholdDown: 0.2, thresholdUp: 0.15   // za graf
     }, opts || {});
     const s = { state: 'STOJI', shown: 'STOJI', squats: 0, v: 0, p: 0, ref: 0, aV: 0, mean: 0, still: false,
-      tilt: 90, flatFor: 0, uprightFor: 0, g: null, lastT: null, lastChange: -1e9 };
-    const hist = []; // [t, p]
+      tilt: 90, g: null, lastT: null, lastChange: -1e9 };
+    const hist = []; // [t, p, tilt]
     const events = [];
     const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
 
@@ -177,37 +189,44 @@ input[type=range]{width:100%;height:36px}
       const gn = Math.hypot(gv.x, gv.y, gv.z) || G;
       s.aV = (lin.x * gv.x + lin.y * gv.y + lin.z * gv.z) / gn;
       s.mean = Math.hypot(lin.x, lin.y, lin.z);
-      // kot zaslona glede na vodoravnico: 0° = leži, 90° = pokonci
-      s.tilt = Math.acos(Math.min(1, Math.abs(gv.z) / gn)) * 180 / Math.PI;
-      s.flatFor = s.tilt <= o.flatMax ? s.flatFor + dt : 0;
-      s.uprightFor = s.tilt >= o.uprightMin ? s.uprightFor + dt : 0;
+      s.tilt = Math.acos(Math.min(1, Math.abs(gv.z) / gn)) * 180 / Math.PI; // 0° leži, 90° pokonci
 
       const leak = Math.max(0, 1 - dt / o.tau);
       s.v = s.v * leak + s.aV * dt;
       s.p = s.p * leak + s.v * dt;
       s.still = Math.abs(s.v) < 0.05;
-      hist.push([t, s.p]); while (hist.length && hist[0][0] < t - o.recent) hist.shift();
-      let pmin = 0, pmax = 0; for (const h of hist) { if (h[1] < pmin) pmin = h[1]; if (h[1] > pmax) pmax = h[1]; }
+      hist.push([t, s.p, s.tilt]); while (hist.length && hist[0][0] < t - o.recent) hist.shift();
+      let pmin = 0, pmax = 0, tmax = s.tilt, tmin = s.tilt;
+      for (const h of hist) { if (h[1] < pmin) pmin = h[1]; if (h[1] > pmax) pmax = h[1]; if (h[2] > tmax) tmax = h[2]; if (h[2] < tmin) tmin = h[2]; }
       const can = t - s.lastChange >= o.minHold;
 
       if (s.state === 'STOJI' && can) {
-        const byTilt = pmin <= -o.dropMin && s.flatFor >= o.holdTilt;
-        const byDrop = s.p <= -o.strong;
-        if (byTilt || byDrop) { s.state = 'V_POCEPU'; s.lastChange = t; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmin.toFixed(3), tilt: Math.round(s.tilt), by: byTilt ? 'lega' : 'spust' }); }
+        const flatter = tmax - s.tilt >= o.tiltChange;
+        const byDrop = s.p <= -o.dropMin;
+        const byTilt = flatter && pmin <= -o.dropTilt;
+        if (byDrop || byTilt) { s.state = 'V_POCEPU'; s.lastChange = t; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmin.toFixed(3), tilt: Math.round(s.tilt), by: byDrop ? 'spust' : 'spust+lega' }); }
       } else if (s.state === 'V_POCEPU' && can) {
-        const byTilt = pmax >= o.riseMin && s.uprightFor >= o.holdTilt;
-        const byRise = s.p >= o.strong;
-        if (byTilt || byRise) { s.state = 'STOJI'; s.lastChange = t; s.squats++; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmax.toFixed(3), tilt: Math.round(s.tilt), squat: s.squats, by: byTilt ? 'lega' : 'dvig' }); }
+        const upright = s.tilt - tmin >= o.tiltChange;
+        const byRise = s.p >= o.riseMin;
+        const byTilt = upright && pmax >= o.riseTilt;
+        if (byRise || byTilt) { s.state = 'STOJI'; s.lastChange = t; s.squats++; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmax.toFixed(3), tilt: Math.round(s.tilt), squat: s.squats, by: byRise ? 'dvig' : 'dvig+lega' }); }
       }
       let shown = s.state;
-      if (s.state === 'STOJI' && (s.p <= -o.showMove || s.flatFor > 0.15)) shown = 'SPUSCA';
-      if (s.state === 'V_POCEPU' && (s.p >= o.showMove || s.uprightFor > 0.15)) shown = 'DVIGUJE';
+      if (s.state === 'STOJI' && s.p <= -o.showMove) shown = 'SPUSCA';
+      if (s.state === 'V_POCEPU' && s.p >= o.showMove) shown = 'DVIGUJE';
       if (shown !== s.shown) { s.shown = shown; emit(t, 'shown', { shown }); }
       return s;
     }
+    // igra: otrok je pritisnil "Naslednji krog" – zagotovo stoji; začni znova iskati spust
+    function standNow() {
+      const t = s.lastT || 0;
+      if (s.state !== 'STOJI') emit(t, 'state', { state: 'STOJI', by: 'klik' });
+      s.state = 'STOJI'; s.lastChange = t; s.v = 0; s.p = 0; hist.length = 0;
+      if (s.shown !== 'STOJI') { s.shown = 'STOJI'; emit(t, 'shown', { shown: 'STOJI' }); }
+    }
     function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.v = s.p = 0; s.lastChange = -1e9; hist.length = 0; events.length = 0; }
     function height() { return s.p; }
-    return { update, reset, height, state: s, events, opts: o };
+    return { update, reset, standNow, height, state: s, events, opts: o };
   }
   const api = { createDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SquatDetector = api;
@@ -387,7 +406,7 @@ function nextRound() {
   $('gBeans').innerHTML = g.order.map(i => `<button class="bean" data-i="${i}" aria-label="${NAMES[i]}">${beanSvg(COLORS[i])}</button>`).join('');
   $('gRound').textContent = `Krog ${g.round}/${g.rounds}`;
   updatePickMsg();
-  phase(det.state.state === 'V_POCEPU' ? 'pick' : 'go');
+  phase(det.state.state === 'V_POCEPU' && !det.standNow ? 'pick' : 'go');
 }
 function updatePickMsg() { $('gPickMsg').textContent = g.sel.length < 5 ? `Izberi ${5 - g.sel.length} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][5 - g.sel.length]}` : 'Zdaj vstani'; }
 $('gBeans').addEventListener('click', e => {
@@ -404,6 +423,7 @@ function onDet(e) {
   if (e.type === 'shown' || e.type === 'state') {
     setStatus($('gStatus'), det.state.shown);
     setStatus($('sStatus'), det.state.shown, 'počepov: ' + det.state.squats);
+    setStatus($('cDet'), det.state.shown, 'zaznano · počepov: ' + det.state.squats);
   }
   if (!g.on || e.type !== 'state') return;
   if (e.state === 'V_POCEPU' && (g.phase === 'go' || g.phase === 'early')) phase('pick');
@@ -422,6 +442,7 @@ $('btnNext').addEventListener('click', () => {
   const time = now() - g.start;
   g.results.push({ round: g.round, time: +time.toFixed(2), ok: g.lastOk, early: g.early, picked: g.sel.map(i => NAMES[i]) });
   logEvent('round', g.results[g.results.length - 1]);
+  if (det.standNow) det.standNow();
   nextRound();
 });
 function finish() {
@@ -462,6 +483,38 @@ function draw() {
   if ($('s-sensors').classList.contains('on')) requestAnimationFrame(draw);
 }
 
+// ---------- vodeno snemanje (oznake za uglaševanje) ----------
+const CUES = [
+  ['STOJ MIRNO', 'stand', 5],
+  ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5], ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5],
+  ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5], ['POČEP', 'squat', 5], ['VSTANI', 'stand', 5],
+  ['POČASI V POČEP', 'squat_slow', 6], ['POČASI VSTANI', 'stand_slow', 6], ['POČASI V POČEP', 'squat_slow', 6], ['POČASI VSTANI', 'stand_slow', 6],
+  ['HITRO V POČEP', 'squat_fast', 3], ['HITRO VSTANI', 'stand_fast', 4], ['HITRO V POČEP', 'squat_fast', 3], ['HITRO VSTANI', 'stand_fast', 4],
+  ['STOJ – SPUSTI ROKO S TELEFONOM', 'fake_arm_down', 3], ['DVIGNI ROKO NAZAJ', 'fake_arm_up', 3],
+  ['STOJ – TELEFON VODORAVNO', 'fake_flat', 4], ['TELEFON NAZAJ, KOT PREJ', 'fake_unflat', 3],
+  ['SKLONI SE NAPREJ (brez počepa)', 'fake_bend', 3], ['ZRAVNAJ SE', 'fake_unbend', 3],
+  ['HODI NA MESTU', 'fake_walk', 5], ['STOJ MIRNO', 'stand', 3]
+];
+let cueTimer = null;
+$('btnGuided').addEventListener('click', async () => {
+  if (!(await startSensors())) return; rec.meta.mode = 'vodeno'; show('s-guided');
+  let i = 0, left = CUES[0][2];
+  const showCue = () => {
+    const [txt, lab, dur] = CUES[i]; left = dur;
+    $('cCue').textContent = txt; $('cCue').className = 'status ' + (lab.startsWith('squat') ? 'st-V_POCEPU' : lab.startsWith('fake') ? 'st-SPUSCA' : 'st-STOJI');
+    $('cStep').textContent = (i + 1) + '/' + CUES.length; $('cLeft').textContent = left + ' s';
+    $('cNext').textContent = CUES[i + 1] ? 'Nato: ' + CUES[i + 1][0].toLowerCase() : '';
+    logEvent('cue', { label: lab, text: txt, dur });
+    if (navigator.vibrate) navigator.vibrate(80);
+  };
+  showCue();
+  cueTimer = setInterval(() => {
+    left--; $('cLeft').textContent = left + ' s';
+    if (left <= 0) { i++; if (i >= CUES.length) { clearInterval(cueTimer); logEvent('cue', { label: 'end' }); $('cCue').textContent = 'KONEC – hvala!'; $('cCue').className = 'status st-STOJI'; $('cNext').textContent = ''; $('btnSave3').classList.remove('hidden'); return; } showCue(); }
+  }, 1000);
+});
+$('btnBack2').addEventListener('click', () => location.reload());
+
 // ---------- shranjevanje ----------
 async function save() {
   rec.meta.saved = new Date().toISOString(); rec.meta.squats = det.state.squats; rec.meta.rateHz = Math.round(rateEma);
@@ -471,7 +524,7 @@ async function save() {
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e.name === 'AbortError') return; }
   const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = name; document.body.appendChild(a); a.click(); a.remove();
 }
-$('btnSave1').addEventListener('click', save); $('btnSave2').addEventListener('click', save);
+$('btnSave1').addEventListener('click', save); $('btnSave2').addEventListener('click', save); $('btnSave3').addEventListener('click', save);
 
 // informacija o napravi
 $('sensorInfo').textContent = (location.protocol !== 'https:' && location.hostname !== 'localhost' && !SIM) ? 'Pozor: senzorji delujejo samo na naslovu https://' : (SIM ? 'Simulacija (brez senzorjev).' : '');
