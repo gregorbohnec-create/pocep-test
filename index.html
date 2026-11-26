@@ -81,7 +81,7 @@ input[type=range]{width:100%;height:36px}
         <select id="memo"><option value="10" selected>10 s</option><option value="20">20 s</option><option value="40">40 s</option></select></div>
     </div>
     <label for="flash" style="margin-top:12px">Prikaz kombinacije</label>
-    <select id="flash"><option value="stand" class="onlySquat" selected>ves čas, ko je telefon na mizi</option><option value="1">1 s na začetku kroga</option><option value="2">2 s na začetku kroga</option><option value="3">3 s na začetku kroga</option><option value="5">5 s na začetku kroga</option></select>
+    <select id="flash"><option value="stand" class="onlySquat" selected>ves čas, ko je telefon na mizi</option><option value="1">1 s na začetku kroga</option><option value="2">2 s na začetku kroga</option><option value="3">3 s na začetku kroga</option><option value="4">4 s na začetku kroga</option><option value="5">5 s na začetku kroga</option></select>
     <label class="onlySquat" style="margin-top:8px;font-weight:600"><input type="checkbox" id="newEach"> Nova kombinacija vsak krog</label>
     <div class="onlySquat"><label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
     <select id="where"><option value="table" selected>položi na tla, nato nazaj na mizo (priporočeno)</option><option value="hand">drži v roki</option></select>
@@ -372,16 +372,17 @@ input[type=range]{width:100%;height:36px}
       lieWindow: 0.4,     // s – okno za mirovanje
       lieMean: 0.15,      // m/s² – povprečni |pospešek| pri ležanju
       lieMax: 0.8,        // m/s² – največji sunek pri ležanju (dotik zaslona na tleh je lahko močnejši)
-      minMove: 0.15,      // m – vodoravni premik, ki šteje kot prestavitev k drugi roki
+      minMove: 0.20,      // m – vodoravni premik, ki šteje kot prestavitev (posnetki: pravi 28–60 cm, močno tapkanje 12 cm)
+      startDist: 0.10,    // m – sproten vodoravni premik, ko javimo 'začel se je premik' (klik na zaslon ostane < 7 cm)
       maxCarry: 8,        // s – daljši premik zavržemo (telefon je nekdo pobral)
       fallbackDur: 0.5,   // s – brez ločene gravitacije: dovolj dolg premik ...
       fallbackPeak: 1.2,  // m/s² – ... z dovolj močnim sunkom šteje kot prestavitev
       gravityTau: 0.5,
-      thresholdDown: 0.15, thresholdUp: 0.15 // za graf
+      thresholdDown: 0.20, thresholdUp: 0.20 // za graf
     }, opts || {});
     const s = { state: 'STOJI', shown: 'STOJI', level: 'NEZNANO', squats: 0, moves: 0, lying: false, carrying: false,
       carryStart: 0, still: false, tilt: 90, aV: 0, mean: 0, noLinear: false, lastT: null, g: null, gLie: 9.81,
-      R: null, v: [0, 0, 0], p: [0, 0, 0], v0: [0, 0, 0], p0: [0, 0, 0], peak: 0, gStart: [0, 0, 1], last: null };
+      R: null, v: [0, 0, 0], p: [0, 0, 0], started: false, v0: [0, 0, 0], p0: [0, 0, 0], peak: 0, gStart: [0, 0, 1], last: null };
     const buf = []; const events = [];
     const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
     const setShown = (t, sh) => { if (s.shown !== sh) { s.shown = sh; emit(t, 'shown', { shown: sh }); } };
@@ -461,16 +462,19 @@ input[type=range]{width:100%;height:36px}
       } else {
         if (s.lying || !s.carrying) {
           // začetek premika: integriramo od začetka okna (gib se je začel malo prej)
-          s.carrying = true; s.R = I3(); s.v = [0, 0, 0]; s.p = [0, 0, 0]; s.v0 = [0, 0, 0]; s.p0 = [0, 0, 0]; s.peak = 0;
+          s.carrying = true; s.started = false; s.R = I3(); s.v = [0, 0, 0]; s.p = [0, 0, 0]; s.v0 = [0, 0, 0]; s.p0 = [0, 0, 0]; s.peak = 0;
           s.gStart = buf[0] ? buf[0].g : b.g;
           let pt = buf[0] ? buf[0].t : t; s.carryStart = pt;
           for (const x of buf) { integrate(x, x.t - pt); pt = x.t; }
         } else integrate(b, dt);
+        if (!s.started && !s.noLinear && rawHoriz() >= o.startDist) { s.started = true; emit(t, 'moving', { after: +(t - s.carryStart).toFixed(2) }); }
+        if (!s.started && s.noLinear && t - s.carryStart >= o.fallbackDur && s.peak >= o.fallbackPeak) { s.started = true; emit(t, 'moving', { after: +(t - s.carryStart).toFixed(2) }); }
         s.lying = false;
         if (s.level !== 'NEZNANO') setShown(t, 'SPUSCA');
       }
       return s;
     }
+    function rawHoriz() { const g = s.gStart, p = s.p, up = p[0] * g[0] + p[1] * g[1] + p[2] * g[2]; return Math.hypot(p[0] - up * g[0], p[1] - up * g[1], p[2] - up * g[2]); }
     function current() { if (!s.carrying) return 0; return Math.hypot(s.p[0], s.p[1], s.p[2]); }
     function reset() { s.state = s.shown = 'STOJI'; s.level = 'NEZNANO'; s.moves = s.squats = 0; s.carrying = false; s.last = null; buf.length = 0; events.length = 0; }
     function height() { return -current(); }
@@ -509,10 +513,10 @@ const FLASH = () => $('flash').value === 'stand' ? 0 : +$('flash').value;
 function syncSettings() {
   const pl = PLANK();
   document.querySelectorAll('.onlySquat').forEach(el => el.classList.toggle('hidden', pl));
-  if (pl && $('flash').value === 'stand') $('flash').value = '2';
-  if (pl && !syncSettings.plankSet) { $('nBeans').value = '3'; $('rounds').value = '999'; syncSettings.plankSet = true; }
+  if (pl && $('flash').value === 'stand') $('flash').value = '4';
+  if (pl && !syncSettings.plankSet) { $('flash').value = '4'; $('nBeans').value = '3'; $('rounds').value = '999'; syncSettings.plankSet = true; }
   $('intro').textContent = pl
-    ? 'Plank: telefon leži na tleh ob eni roki. Za 2 s se pokaže kombinacija – zapomni si jo. Z isto roko prestavi telefon k drugi roki, prenesi težo in z drugo roko izberi prave fižolčke. Klikni »Naslednji krog« in telefon prestavi nazaj. Tako levo–desno, dokler zdržiš. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.'
+    ? 'Plank: telefon leži na tleh ob eni roki. Pokaže se kombinacija – zapomni si jo; skrije se po nastavljenem času ali takoj, ko začneš premikati telefon. Z isto roko prestavi telefon k drugi roki, prenesi težo in z drugo roko izberi prave fižolčke. Klikni »Naslednji krog« in telefon prestavi nazaj. Tako levo–desno, dokler zdržiš. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.'
     : 'Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi prave (3–5, nastaviš spodaj), telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.';
 }
 $('exercise').addEventListener('change', syncSettings); syncSettings();
@@ -694,6 +698,7 @@ function onDet(e) {
   }
   if (!g.on) return;
   if (pl) {
+    if (e.type === 'moving' && g.phase === 'show') { clearTimeout(g.timer); phase('move'); return; } // kombinacija se skrije ob začetku premika
     if (e.type !== 'move') return;
     if (navigator.vibrate) navigator.vibrate(60);
     if (g.phase === 'move') { g.lastMove = e; phase('pick'); }
