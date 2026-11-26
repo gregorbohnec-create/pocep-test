@@ -62,6 +62,24 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .warn{background:#fff3d6;border-radius:14px;padding:12px;font-size:15px}
 .hidden{display:none!important}
 input[type=range]{width:100%;height:36px}
+/* govorna vaja */
+.spTime{font-size:110px;font-weight:900;text-align:center;line-height:1;margin:18px 0 6px;font-variant-numeric:tabular-nums}
+.spMsg{font-size:34px;font-weight:900;text-align:center;min-height:2.6em;display:flex;align-items:center;justify-content:center;border-radius:20px;padding:10px;color:#fff;background:var(--ink);transition:background .3s}
+.spMsg.l-MIRUJE{background:#5d6b78}.spMsg.l-PREŠIBKO{background:#E23E34}.spMsg.l-DOBRO{background:#0571D3}.spMsg.l-ODLIČNO{background:#2e9e4f}
+.spBarWrap{height:46px;border-radius:23px;background:#fff;margin:22px 0 6px;overflow:hidden;border:3px solid var(--ink)}
+.spBar{height:100%;width:0;background:linear-gradient(90deg,#FBBC5D,#B6E678,#2e9e4f);transition:width .25s}
+.spBarLbl{display:flex;justify-content:space-between;font-size:20px;font-weight:700}
+.spNow{height:14px;border-radius:7px;background:#fff;margin-top:14px;overflow:hidden}.spNow div{height:100%;width:0;background:var(--ink);transition:width .2s}
+body.reading{overflow:hidden}
+body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;background:#fffdf6;z-index:5}
+.prompter{position:absolute;inset:0 0 86px 0;overflow:hidden}
+.pText{padding:34vh 22px 60vh;font-size:clamp(26px,7.4vw,38px);line-height:1.55;font-weight:600;color:#283946;will-change:transform;white-space:pre-line}
+.pText h2{font-size:1.15em;margin:0 0 .6em;font-weight:900}
+.pBand{position:absolute;left:0;right:0;top:calc(34vh - .3em);height:3.4em;background:rgba(163,148,231,.18);border-top:2px solid rgba(163,148,231,.5);border-bottom:2px solid rgba(163,148,231,.5);pointer-events:none}
+.pCtl{position:absolute;left:0;right:0;bottom:0;height:86px;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fffdf6;border-top:1px solid #eee}
+.pCtl button{flex:1;margin:0;font-size:24px;padding:0}.pCtl #pDone{flex:2;font-size:18px}
+.pInfo{position:absolute;top:8px;right:12px;font-size:14px;color:#8a94a0;font-weight:600}
+.feel{display:flex;gap:6px}.feel button{flex:1;margin:0;padding:14px 0;font-size:22px}.feel button.on{background:var(--ink);color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -73,9 +91,19 @@ input[type=range]{width:100%;height:36px}
   <p class="muted" id="intro"></p>
   <div class="card">
     <label for="exercise">Vaja</label>
-    <select id="exercise" style="margin-bottom:12px"><option value="squat" selected>Počep (DOSEŽKAR)</option><option value="plank">Plank</option></select>
+    <select id="exercise" style="margin-bottom:12px"><option value="squat" selected>Počep (DOSEŽKAR)</option><option value="plank">Plank</option><option value="speech">Govorna vaja (skiping + branje)</option></select>
     <label for="note">Kdo testira in kako (za posnetek)</label>
     <input type="text" id="note" placeholder="npr. Gregor, desna roka, normalni počepi">
+    <div class="onlySpeech">
+      <label for="spText">Besedilo</label>
+      <select id="spText"><option value="-1" selected>naključno</option></select>
+      <label for="spWpm" style="margin-top:12px">Hitrost pomikanja besedila</label>
+      <select id="spWpm"><option value="80">80 besed/min (zelo počasi)</option><option value="90">90 besed/min</option><option value="100" selected>100 besed/min</option><option value="110">110 besed/min</option><option value="120">120 besed/min</option><option value="140">140 besed/min (hitro)</option></select>
+      <label for="spSec" style="margin-top:12px">Skiping</label>
+      <select id="spSec"><option value="20">20 s</option><option value="30">30 s</option><option value="40" selected>40 s</option><option value="60">60 s</option></select>
+      <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="spVoice" checked> Spodbude na glas (sicer piski)</label>
+    </div>
+    <div class="onlyGame">
     <div class="row" style="margin-top:12px">
       <div><label for="rounds">Krogov</label>
         <select id="rounds"><option>3</option><option selected>5</option><option>10</option><option>20</option><option>40</option><option value="999">dokler zdržim</option></select></div>
@@ -92,6 +120,7 @@ input[type=range]{width:100%;height:36px}
     <div class="onlySquat"><label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
     <select id="where"><option value="table" selected>položi na tla, nato nazaj na mizo (priporočeno)</option><option value="hand">drži v roki</option></select>
     <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="showCombo"> Kombinacija vidna tudi v počepu</label></div>
+    </div>
   </div>
   <div id="sensorWarn" class="warn hidden"></div>
   <button class="big" id="btnGame">Začni igro</button>
@@ -128,6 +157,40 @@ input[type=range]{width:100%;height:36px}
     <button class="big" id="btnNext">Naslednji krog</button>
   </div>
   <div class="row"><button class="sec" id="btnStop">Končaj</button></div>
+</section>
+
+<!-- GOVORNA VAJA -->
+<section class="screen" id="s-speech">
+  <div id="spReady">
+    <p class="msg">Telefon trdno drži v roki. Ko klikneš ZAČNI, <span id="spSecTxt">40</span> s delaj visoki skiping – čim višje kolena in čim hitreje.</p>
+    <p class="muted" style="text-align:center">Nato se pokaže besedilo, ki ga bereš na glas. Pomika se samo.</p>
+    <button class="big" id="btnSpGo">Začni</button>
+    <p class="muted" id="spVoiceInfo" style="text-align:center"></p>
+  </div>
+  <div id="spSkip" class="hidden">
+    <div class="spTime" id="spTime">40</div>
+    <div class="spMsg l-MIRUJE" id="spMsg">Visoki skiping!</div>
+    <div class="spBarWrap"><div class="spBar" id="spBar"></div></div>
+    <div class="spBarLbl"><span>Moč gibanja</span><b id="spPct">0 %</b></div>
+    <div class="spNow"><div id="spNow"></div></div>
+    <p class="muted" style="text-align:center;margin-top:4px">trenutno</p>
+  </div>
+  <div id="spRead" class="hidden">
+    <div class="prompter" id="prompter"><div class="pText" id="pText"></div></div>
+    <div class="pBand"></div>
+    <div class="pInfo" id="pInfo"></div>
+    <div class="pCtl"><button class="sec" id="pSlow" aria-label="Počasneje">−</button><button class="sec" id="pPause" aria-label="Premor">❚❚</button><button class="sec" id="pFast" aria-label="Hitreje">+</button><button id="pDone">Končal sem</button></div>
+  </div>
+  <div id="spEnd" class="hidden">
+    <h1>Konec vaje</h1>
+    <div class="card"><div class="kv" id="spRes"></div></div>
+    <div class="card"><p style="margin:0 0 8px;font-weight:700">Kako se počutiš zdaj?</p>
+      <div class="feel" id="spFeel"><button class="sec" data-v="1">1</button><button class="sec" data-v="2">2</button><button class="sec" data-v="3">3</button><button class="sec" data-v="4">4</button><button class="sec" data-v="5">5</button></div>
+      <p class="muted" style="display:flex;justify-content:space-between;margin:6px 0 0"><span>1 = zelo napet</span><span>5 = povsem miren</span></p></div>
+    <button class="big" id="btnSave4">Shrani posnetek</button>
+    <button class="sec" id="btnSpAgain">Nov test</button>
+  </div>
+  <button class="sec" id="btnSpStop">Prekini</button>
 </section>
 
 <!-- REZULTAT -->
@@ -494,6 +557,113 @@ input[type=range]{width:100%;height:36px}
 
 </script>
 <script>
+// Govorna vaja – ocena visokega skipinga s telefonom v roki.
+// Uporablja samo |pospešek z gravitacijo| (deluje na vseh telefonih).
+// dyn = |ag| - drseče povprečje (odstrani g); moč = RMS(dyn) v zadnjih 2 s;
+// koraki = vrhovi dyn nad pragom, vsaj 0,18 s narazen; kadenca = vrhov/s v zadnjih 3 s.
+// kakovost f (0..1): 0 pod rmsLow, 1 pri rmsGood ali več; brez dovolj korakov (kadenca < cadMin) je 0.
+// Ravni za prikaz: MIRUJE / PREŠIBKO / DOBRO / ODLIČNO.
+(function (root) {
+  function createSkipDetector(opts) {
+    const o = Object.assign({
+      rmsWindow: 2.0,    // s
+      cadWindow: 3.0,    // s
+      meanTau: 1.5,      // s – drseče povprečje |ag|
+      peakThr: 3.0,      // m/s² – vrh, ki šteje kot korak
+      peakGap: 0.18,     // s – najmanjši razmik med koraki
+      rmsStill: 1.2,     // m/s² – pod tem "miruješ"
+      rmsLow: 3.0,       // m/s² – pod tem kakovost 0
+      rmsGood: 7.5,      // m/s² – pri tem in več kakovost 1
+      cadMin: 1.5,       // koraki/s – manj = ni skipinga
+      cadGood: 2.6,      // koraki/s – za oceno "odlično" mora biti tudi dovolj hitro
+      thresholdDown: 0.3, thresholdUp: 0.3
+    }, opts || {});
+    const s = { shown: 'STOJI', state: 'STOJI', level: 'MIRUJE', rms: 0, cad: 0, f: 0, steps: 0, squats: 0, mean: null, lastT: null, lastPeak: -1, still: true, aV: 0, prevDyn: 0, rising: false, peakVal: 0, peakT: 0 };
+    const win = [], peaks = [], events = [];
+    const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
+    const MAP = { MIRUJE: 'STOJI', 'PREŠIBKO': 'SPUSCA', DOBRO: 'V_POCEPU', 'ODLIČNO': 'DVIGUJE' };
+    function update(t, a, ag) {
+      if (!ag || !isFinite(ag.x)) return s;
+      if (s.lastT === null) s.lastT = t;
+      let dt = t - s.lastT; s.lastT = t; if (!(dt > 0) || dt > 0.2) dt = 1 / 60;
+      const m = Math.hypot(ag.x, ag.y, ag.z);
+      s.mean = s.mean === null ? m : s.mean + Math.min(1, dt / o.meanTau) * (m - s.mean);
+      const dyn = m - s.mean; s.aV = dyn;
+      win.push([t, dyn]); while (win.length && win[0][0] < t - o.rmsWindow) win.shift();
+      let ss = 0; for (const w of win) ss += w[1] * w[1]; s.rms = Math.sqrt(ss / win.length);
+      // vrh: lokalni maksimum nad pragom
+      if (dyn > o.peakThr && dyn > s.prevDyn) { s.rising = true; s.peakVal = dyn; s.peakT = t; }
+      else if (s.rising && dyn < s.prevDyn) {
+        s.rising = false;
+        if (s.peakT - s.lastPeak >= o.peakGap) { peaks.push(s.peakT); s.lastPeak = s.peakT; s.steps++; s.squats = s.steps; }
+      }
+      s.prevDyn = dyn;
+      while (peaks.length && peaks[0] < t - o.cadWindow) peaks.shift();
+      s.cad = peaks.length / o.cadWindow;
+      let f = (s.rms - o.rmsLow) / (o.rmsGood - o.rmsLow); f = Math.max(0, Math.min(1, f));
+      if (s.cad < o.cadMin) f = 0;
+      s.f = f;
+      s.still = s.rms < o.rmsStill;
+      const lvl = s.still ? 'MIRUJE' : f < 0.45 ? 'PREŠIBKO' : (f >= 0.95 && s.cad >= o.cadGood) ? 'ODLIČNO' : 'DOBRO';
+      if (lvl !== s.level) { s.level = lvl; s.shown = s.state = MAP[lvl]; emit(t, 'level', { level: lvl, rms: +s.rms.toFixed(2), cad: +s.cad.toFixed(2) }); emit(t, 'shown', { shown: s.shown }); }
+      return s;
+    }
+    function reset() { win.length = 0; peaks.length = 0; s.steps = s.squats = 0; s.level = 'MIRUJE'; s.shown = s.state = 'STOJI'; }
+    function height() { return s.rms; }
+    return { update, reset, height, state: s, events, opts: o };
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createSkipDetector }; else root.SkipDetector = { createSkipDetector };
+})(this);
+
+</script>
+<script>
+// Besedila za govorno vajo (vsako ~420 besed ≈ 3,5–4 min branja na glas).
+// Napisana za ta prototip; lastnik lahko doda svoja.
+var GOVOR_TEXTS = [
+{ title: 'Matilda', text: `Matilda je glavna junakinja knjige angleškega pisatelja Roalda Dahla. Je majhna deklica z izjemno bistrim umom, ki pa živi v družini, kjer zanjo nihče zares ne skrbi. Oče prodaja rabljene avtomobile in kupce rad pretenta, mama pa večino popoldnevov preživi ob igranju binga. Oba sta prepričana, da je televizija pomembnejša od knjig, zato hčerine nadarjenosti sploh ne opazita.
+
+Matilda se je brati naučila sama, še preden je začela hoditi v šolo. Ker doma ni bilo knjig, je sama hodila v knjižnico. Prijazna knjižničarka ji je najprej svetovala otroške knjige, a jih je deklica kmalu prebrala vse. Nato je posegla po romanih za odrasle in jih brala z enakim veseljem. Ob branju je spoznavala svet, ki ga doma ni mogla videti, in počasi je dojela, da z njo ni nič narobe, čeprav jo starši imajo za nadležno.
+
+Ker je oče z njo ravnal krivično, se mu je Matilda maščevala z domiselnimi potegavščinami. Enkrat mu je v klobuk namazala lepilo, drugič je v dimnik skrila govorečo papigo, da je vsa družina mislila, da v hiši straši. Nikoli ni nikogar zares poškodovala. Želela je le, da bi odrasli spoznali, da tudi otrok zasluži spoštovanje.
+
+V šoli je Matilda spoznala učiteljico Medico, ki je takoj opazila, kako izjemna je. Medica je bila nežna in potrpežljiva, a tudi sama nesrečna, saj je živela zelo skromno in se je bala stroge ravnateljice. Ravnateljica je bila velika, glasna in kruta ženska, ki je otroke kaznovala za vsako malenkost. Učenci so se je bali, a Matilda je s sošolko Sivko in drugimi prijatelji kmalu ugotovila, da strah ni edini odgovor.
+
+Nekega dne je Matilda odkrila, da lahko s pogledom premika predmete. Najprej je prevrnila kozarec vode, kasneje pa se je naučila premikati tudi kredo po tabli. To moč je uporabila premišljeno. Ravnateljico je tako prestrašila, da je ta za vedno zapustila šolo, učiteljica Medica pa je končno dobila dom, ki ji je pripadal.
+
+Zgodba se konča srečno. Matildini starši morajo zaradi očetovih nepoštenih poslov nenadoma oditi v tujino. Matilda se odloči, da ostane, in starši ji brez obotavljanja dovolijo, da živi pri učiteljici Medici. Tako dobi dom, v katerem jo imajo radi in jo razumejo.
+
+Knjiga nas uči, da so znanje, pogum in prijaznost močnejši od krutosti. Pokaže tudi, kako pomembno je, da odrasli otroke poslušajo in jih spodbujajo. Matilda je drobna, a zelo pogumna, ker ve, kaj je prav, in se za to tudi zavzame.` },
+
+{ title: 'Kroženje vode v naravi', text: `Voda je ena najpomembnejših snovi na Zemlji. Brez nje ne bi bilo življenja, saj jo potrebujejo rastline, živali in ljudje. Čeprav se nam zdi, da je vode veliko, je večina slana in se nahaja v morjih in oceanih. Sladke vode, ki jo lahko pijemo, je le majhen del, in še ta je večinoma zamrznjena v ledenikih ali skrita pod zemljo. Zato je pomembno, da razumemo, kako voda kroži, in da z njo ravnamo skrbno.
+
+Kroženje vode poganja Sonce. Ko sončni žarki segrejejo morja, jezera in reke, se del vode spremeni v vodno paro. Temu pravimo izhlapevanje. Vodna para je nevidna in se s toplim zrakom dviga visoko v ozračje. Vodo oddajajo tudi rastline skozi listne reže. Celo mi z vsakim izdihom oddamo nekaj vodne pare.
+
+Višje ko se zrak dviga, hladnejši je. Ko se vodna para ohladi, se zgosti v drobne kapljice ali ledene kristalčke. To je kondenzacija. Kapljice so tako majhne, da lebdijo v zraku, in ko se jih zbere zelo veliko, nastanejo oblaki. V oblakih se kapljice zaletavajo, združujejo in večajo. Ko postanejo pretežke, da bi jih zrak še nosil, padejo na tla kot dež. Če je dovolj mrzlo, pade sneg, včasih pa tudi toča. Vse te oblike skupaj imenujemo padavine.
+
+Del padavin odteče po površju v potoke in reke, ki vodo spet odnesejo v jezera in morja. Del vode pronica v tla. Tam jo vsrkajo korenine rastlin, nekaj pa se je nabere globoko pod površjem kot podtalnica. Podtalnica je zelo dragocena, ker iz nje črpamo pitno vodo. Del snega se nabira v gorah in na ledenikih, kjer lahko ostane zelo dolgo, preden se stopi in se spet vrne v kroženje.
+
+Slovenija ima veliko vode, ima pa tudi poseben svet, imenovan kras. Kraška tla so iz apnenca, ki ga voda počasi raztaplja. Zato reke na krasu pogosto ponikajo, tečejo pod zemljo in se spet pokažejo na drugem mestu. Tako so nastale tudi znamenite podzemne jame, kapniki in presihajoča jezera, med katerimi je najbolj znano Cerkniško jezero.
+
+Voda na Zemlji torej nikoli ne izgine, le spreminja obliko in kraj. Kapljica, ki danes pade na naše dvorišče, je morda nekoč tekla po reki v drugi državi ali bila del ledenika. Ker pa onesnažena voda kroži enako kot čista, moramo paziti, kaj odvržemo v naravo. Varčna raba vode in skrb za čiste reke sta naloga vsakega izmed nas.` },
+
+{ title: 'France Prešeren', text: `France Prešeren je največji slovenski pesnik. Rodil se je 3. decembra 1800 v Vrbi na Gorenjskem, v kmečki družini z več otroki. Ker je bil zelo nadarjen, so ga poslali v šolo k stricem duhovnikom, nato pa se je šolal v Ribnici in v Ljubljani. Po gimnaziji je odšel na Dunaj, kjer je študiral pravo in postal doktor prava.
+
+Prešeren je večino življenja delal kot pomočnik v odvetniških pisarnah v Ljubljani. Dolgo si je želel postati samostojen odvetnik, a so mu to dovolili šele tik pred koncem življenja, ko je odprl pisarno v Kranju. Njegovo življenje ni bilo lahko. Večkrat je bil razočaran, imel je malo denarja in ni vedno dobil priznanja, ki si ga je zaslužil.
+
+Pomembno vlogo v njegovem življenju je imel prijatelj Matija Čop, izobražen jezikoslovec, ki je Prešerna spodbujal in mu pomagal spoznavati evropsko književnost. Ko je Čop leta 1835 utonil v Savi, je to pesnika globoko pretreslo. Prijatelju v spomin je posvetil pesnitev Krst pri Savici.
+
+Prešeren se je nesrečno zaljubil v Julijo Primic, hčer bogatega ljubljanskega trgovca. Videl jo je v cerkvi in se vanjo zaljubil na prvi pogled, a ona njegove ljubezni ni vračala. Tej ljubezni je posvetil veliko pesmi, najbolj znan pa je Sonetni venec. To je petnajst sonetov, povezanih tako, da se zadnji verz enega soneta ponovi kot prvi verz naslednjega. Zadnji, petnajsti sonet je sestavljen iz prvih verzov vseh ostalih, njegove začetne črke pa tvorijo napis Primicovi Julji.
+
+Prešeren je dokazal, da se v slovenščini lahko pišejo pesmi, ki so enakovredne najboljšim evropskim. Uporabljal je zahtevne pesniške oblike, kot so sonet, gazela in tercina, in z njimi slovenski jezik povzdignil v umetnost. Njegove pesmi so izšle v zbirki Poezije, ki nosi letnico 1847.
+
+Ena njegovih najpomembnejših pesmi je Zdravljica. V njej nazdravlja slovenski domovini, slogi in svobodi vseh narodov. Posebna je zato, ker si ne želi vojne, ampak mir med sosedi. Sedma kitica Zdravljice je danes slovenska državna himna.
+
+Prešeren je umrl 8. februarja 1849 v Kranju. Na ta dan Slovenci praznujemo slovenski kulturni praznik, ki ga imenujemo tudi Prešernov dan. Takrat se spominjamo pomena kulture, umetnosti in materinščine. Prešernov kip stoji v središču Ljubljane, na trgu, ki nosi njegovo ime, njegov obraz pa je tudi na slovenskem kovancu za dva evra.` }
+];
+if (typeof module !== 'undefined' && module.exports) module.exports = { GOVOR_TEXTS };
+
+</script>
+<script>
 {
 const $ = id => document.getElementById(id);
 const COLORS = ["#F7FE60","#FBBC5D","#E23E34","#A394E7","#0571D3","#B6E678","#EBD7A0","#FFFFFF","#C7D8DF","#283946"];
@@ -513,20 +683,27 @@ function logEvent(type, data) { rec.events.push(Object.assign({ t: +((now() - (t
 // ---------- detektor ----------
 let det = SquatDetector.createDetector({ onEvent: e => onDet(e) });
 function makeDetector() {
+  if (SPEECH()) { det = SkipDetector.createSkipDetector({ onEvent: e => onDet(e) }); return 'hand'; }
   if (PLANK()) { det = PlankDetector.createPlankDetector({ onEvent: e => onDet(e) }); return 'plank'; }
   const w = $('where').value; det = w === 'table' ? TableDetector.createTableDetector({ onEvent: e => onDet(e) }) : SquatDetector.createDetector({ onEvent: e => onDet(e) }); return w;
 }
 const PLANK = () => $('exercise').value === 'plank';
-const TABLE = () => !PLANK() && $('where').value === 'table';
+const SPEECH = () => $('exercise').value === 'speech';
+const TABLE = () => !PLANK() && !SPEECH() && $('where').value === 'table';
 const FLASH = () => $('flash').value === 'stand' ? 0 : +$('flash').value.replace('m', '');
 const HIDE_ON_MOVE = () => $('flash').value[0] === 'm';
 const POOL = () => +$('pool').value;
 function syncSettings() {
-  const pl = PLANK();
-  document.querySelectorAll('.onlySquat').forEach(el => el.classList.toggle('hidden', pl));
+  const pl = PLANK(), sp = SPEECH();
+  document.querySelectorAll('.onlySquat').forEach(el => el.classList.toggle('hidden', pl || sp));
+  document.querySelectorAll('.onlyGame').forEach(el => el.classList.toggle('hidden', sp));
+  document.querySelectorAll('.onlySpeech').forEach(el => el.classList.toggle('hidden', !sp));
+  $('btnGame').textContent = sp ? 'Začni vajo' : 'Začni igro';
   if (pl && $('flash').value === 'stand') $('flash').value = 'm4';
   if (pl && !syncSettings.plankSet) { $('flash').value = 'm4'; $('pool').value = '10'; $('nBeans').value = '3'; $('rounds').value = '999'; syncSettings.plankSet = true; }
-  $('intro').textContent = pl
+  $('intro').textContent = sp
+    ? 'Govorna vaja: telefon drži v roki in 40 s delaj visoki skiping – sproti se polni moč gibanja, telefon te spodbuja. Takoj nato se pokaže besedilo, ki ga bereš na glas (vsaj 3 minute); pomika se samo, med branjem se dih in utrip umirita. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.'
+    : pl
     ? 'Plank: telefon leži na tleh ob eni roki. Pokaže se kombinacija – zapomni si jo; skrije se po nastavljenem času ali takoj, ko začneš premikati telefon. Z isto roko prestavi telefon k drugi roki, prenesi težo in z drugo roko izberi prave fižolčke. Klikni »Naslednji krog« in telefon prestavi nazaj. Tako levo–desno, dokler zdržiš. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.'
     : 'Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi prave (3–5, nastaviš spodaj), telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.';
 }
@@ -544,7 +721,7 @@ function onMotion(ev) {
   const tt = +(now() - t0).toFixed(4);
   det.update(tt, A, AG, rr);
   const r = x => x == null ? '' : +(+x).toFixed(4);
-  rec.rows.push([tt, r(A && A.x), r(A && A.y), r(A && A.z), r(AG && AG.x), r(AG && AG.y), r(AG && AG.z), r(rr.alpha), r(rr.beta), r(rr.gamma), r(ev.interval), +det.height().toFixed(4), (PLANK() ? det.state.carrying : det.state.state === 'V_POCEPU') ? 1 : 0]);
+  rec.rows.push([tt, r(A && A.x), r(A && A.y), r(A && A.z), r(AG && AG.x), r(AG && AG.y), r(AG && AG.z), r(rr.alpha), r(rr.beta), r(rr.gamma), r(ev.interval), +det.height().toFixed(4), SPEECH() ? (sp.phase === 'skip' ? 1 : sp.phase === 'read' ? 2 : 0) : (PLANK() ? det.state.carrying : det.state.state === 'V_POCEPU') ? 1 : 0]);
   hist.push([tt, det.height(), det.state.tilt]);
 }
 
@@ -576,6 +753,7 @@ function startSim() {
       const m = simQueue[0];
       if (m.lie !== undefined) { lying = m.lie; tilt = m.lie ? 2 : (PLANK() ? 2 : 50); simQueue.shift(); }
       else if (m.hold) { lying = false; if (++m.k >= m.hold * 60) simQueue.shift(); jit = 0.3; }
+      else if (m.skip) { lying = false; tilt = 65; aV = m.amp * Math.sin(2 * Math.PI * m.f * m.k / 60) ** 9 * 1.6; jit = 0.5; if (++m.k >= m.skip * 60) simQueue.shift(); }
       else if (m.dzH !== undefined) { lying = false; const tau = m.k / (m.T * 60); aH = m.dzH * (60 * tau - 180 * tau ** 2 + 120 * tau ** 3) / (m.T * m.T); tilt = 2; jit = 0.2; if (++m.k >= m.T * 60) simQueue.shift(); }
       else { lying = false; const tau = m.k / (m.T * 60); aV = m.dz * (60 * tau - 180 * tau ** 2 + 120 * tau ** 3) / (m.T * m.T); tilt = m.from + (m.to - m.from) * tau; jit = 0.3; if (++m.k >= m.T * 60) { tilt = m.to; simQueue.shift(); } }
     } else if (!lying) jit = 0.15;
@@ -587,6 +765,7 @@ function startSim() {
   }, 1000 / 60);
   window.simSquat = () => simQueue.push({ dz: -0.45, T: 1.0, k: 0, from: 65, to: 10 });
   window.simStand = () => simQueue.push({ dz: 0.45, T: 1.0, k: 0, from: 10, to: 65 });
+  window.simSkip = (sec = 10, amp = 12, f = 1.6) => simQueue.push({ skip: sec, amp, f, k: 0 });
   window.simLie = () => simQueue.push({ lie: true });
   window.simToFloor = () => simQueue.push({ hold: 0.5, k: 0 }, { dz: -0.75, T: 1.5, k: 0, from: 40, to: 3 }, { lie: true });
   window.simMove = (x = 0.45) => simQueue.push({ lie: false }, { dzH: x, T: 1.0, k: 0, from: 2, to: 2 }, { lie: true });
@@ -598,7 +777,8 @@ function show(id) { document.querySelectorAll('.screen').forEach(s => s.classLis
 const LABEL = { STOJI: 'STOJI', SPUSCA: 'SPUŠČA SE', V_POCEPU: 'V POČEPU', DVIGUJE: 'DVIGUJE SE' };
 const LABEL_TABLE = { STOJI: 'NA MIZI', SPUSCA: 'NESEM NA TLA', V_POCEPU: 'NA TLEH', DVIGUJE: 'NESEM NA MIZO' };
 const LABEL_PLANK = { STOJI: 'TELEFON LEŽI', SPUSCA: 'PRESTAVLJAM', V_POCEPU: 'TELEFON LEŽI', DVIGUJE: 'PRESTAVLJAM' };
-function setStatus(el, shown, extra) { const L = PLANK() ? LABEL_PLANK : TABLE() ? LABEL_TABLE : LABEL; el.className = 'status st-' + shown; el.innerHTML = L[shown] + (extra ? `<small>${extra}</small>` : ''); }
+const LABEL_SPEECH = { STOJI: 'MIRUJEŠ', SPUSCA: 'PREŠIBKO', V_POCEPU: 'DOBRO', DVIGUJE: 'ODLIČNO' };
+function setStatus(el, shown, extra) { const L = SPEECH() ? LABEL_SPEECH : PLANK() ? LABEL_PLANK : TABLE() ? LABEL_TABLE : LABEL; el.className = 'status st-' + shown; el.innerHTML = L[shown] + (extra ? `<small>${extra}</small>` : ''); }
 
 // ---------- igra ----------
 const g = { on: false, phase: 'idle', round: 0, rounds: 5, target: [], order: [], sel: [], early: 0, start: 0, results: [], timer: null, flashUntil: 0, moved: false, lastMove: null };
@@ -705,6 +885,7 @@ $('gBeans').addEventListener('click', e => {
 });
 function onDet(e) {
   logEvent('det_' + e.type, e);
+  if (SPEECH()) { if (e.type === 'shown') { const st = det.state; setStatus($('sStatus'), st.shown, `moč ${st.rms.toFixed(1)} m/s² · ${st.cad.toFixed(1)} korakov/s`); setStatus($('cDet'), st.shown, `moč ${st.rms.toFixed(1)} · ${st.cad.toFixed(1)} korakov/s`); } return; }
   const pl = PLANK();
   if (!pl && e.type === 'state' && navigator.vibrate) navigator.vibrate(e.state === 'V_POCEPU' ? 60 : [30, 40, 30]);
   if (e.type === 'shown' || e.type === 'state' || e.type === 'move') {
@@ -758,7 +939,7 @@ const hist = [];
 $('btnSensors').addEventListener('click', async () => { if (!(await startSensors())) return; rec.meta.mode = 'senzorji'; show('s-sensors'); setStatus($('sStatus'), det.state.shown, PLANK() ? 'prestavitev: 0' : 'počepov: 0');
   if (PLANK()) { $('thr').min = 5; $('thr').max = 40; $('thr').value = 15; $('thrVal').textContent = 15; document.querySelector('label[for=thr]').firstChild.textContent = 'Najmanjši premik: '; }
   draw(); });
-$('btnGame').addEventListener('click', startGame);
+$('btnGame').addEventListener('click', () => SPEECH() ? startSpeech() : startGame());
 $('btnBack').addEventListener('click', () => location.reload());
 $('btnReset').addEventListener('click', () => { det.reset(); hist.length = 0; logEvent('reset'); setStatus($('sStatus'), 'STOJI', 'počepov: 0'); });
 $('thr').addEventListener('input', e => { const v = +e.target.value; $('thrVal').textContent = v; det.opts.thresholdDown = det.opts.thresholdUp = v / 100; if (PLANK()) det.opts.minMove = v / 100; logEvent('threshold', { cm: v }); });
@@ -768,6 +949,7 @@ function draw() {
   if (c.width !== W * dpr) { c.width = W * dpr; c.height = H * dpr; }
   const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, W, H);
   const tn = hist.length ? hist[hist.length - 1][0] : 0; while (hist.length && hist[0][0] < tn - 10) hist.shift();
+  if (SPEECH()) return drawSkip(c, x, W, H, tn);
   const Y = h => H * 0.25 - h * (H * 0.6) / 0.7; // 0 m na 25 % višine, -0,7 m blizu dna
   x.strokeStyle = '#c9c0f2'; x.lineWidth = 1; x.beginPath(); x.moveTo(0, Y(0)); x.lineTo(W, Y(0)); x.stroke();
   x.setLineDash([6, 6]); x.strokeStyle = '#0571D3'; x.beginPath(); x.moveTo(0, Y(-det.opts.thresholdDown)); x.lineTo(W, Y(-det.opts.thresholdDown)); x.stroke(); x.setLineDash([]);
@@ -781,6 +963,140 @@ function draw() {
   $('kRec').textContent = (rec.rows.length / (rateEma || 60)).toFixed(0) + ' s';
   if ($('s-sensors').classList.contains('on')) requestAnimationFrame(draw);
 }
+
+function drawSkip(c, x, W, H, tn) {
+  const o = det.opts, Y = v => H * 0.92 - Math.min(v, 16) / 16 * H * 0.85;
+  x.setLineDash([6, 6]); x.lineWidth = 1;
+  for (const [v, col] of [[o.rmsLow, '#E23E34'], [o.rmsGood, '#2e9e4f']]) { x.strokeStyle = col; x.beginPath(); x.moveTo(0, Y(v)); x.lineTo(W, Y(v)); x.stroke(); }
+  x.setLineDash([]); x.strokeStyle = '#283946'; x.lineWidth = 3; x.beginPath();
+  hist.forEach(([t, h], i) => { const px = W - (tn - t) / 10 * W; i ? x.lineTo(px, Y(h)) : x.moveTo(px, Y(h)); }); x.stroke();
+  x.fillStyle = '#5d6b78'; x.font = '12px system-ui'; x.fillText('premalo ' + o.rmsLow + ' m/s²', 6, Y(o.rmsLow) - 4); x.fillText('dobro ' + o.rmsGood + ' m/s²', 6, Y(o.rmsGood) - 4);
+  const st = det.state; $('kAv').textContent = st.rms.toFixed(1) + ' m/s² · ' + st.cad.toFixed(1) + ' kor./s';
+  setStatus($('sStatus'), st.shown, `moč ${st.rms.toFixed(1)} m/s² · ${st.cad.toFixed(1)} korakov/s · kakovost ${Math.round(st.f * 100)} %`);
+  $('kStill').textContent = st.still ? 'da' : 'ne'; $('kHz').textContent = rateEma ? Math.round(rateEma) + ' Hz' : '–';
+  $('kLin').textContent = hasLinear === null ? '–' : hasLinear ? 'da' : 'ne'; $('kRec').textContent = (rec.rows.length / (rateEma || 60)).toFixed(0) + ' s';
+  if ($('s-sensors').classList.contains('on')) requestAnimationFrame(draw);
+}
+
+// ---------- govorna vaja ----------
+const sp = { phase: 'idle', t0: 0, dur: 40, q: 0, qN: 0, cadSum: 0, cadN: 0, rmsMax: 0, timer: null, lastSay: 0, lastLvl: '', stillSince: null, said: {}, voice: null, ac: null,
+  off: 0, pxs: 0, paused: false, pauses: 0, wpm: 100, words: 0, readT0: 0, raf: null, lastFrame: 0, text: null, feel: null };
+GOVOR_TEXTS.forEach((t, i) => $('spText').insertAdjacentHTML('beforeend', `<option value="${i}">${t.title}</option>`));
+function findVoice() { try { const v = speechSynthesis.getVoices(); return v.find(x => /^sl/i.test(x.lang)) || null; } catch (e) { return null; } }
+if (window.speechSynthesis) speechSynthesis.onvoiceschanged = () => { sp.voice = findVoice(); voiceInfo(); };
+function voiceInfo() { $('spVoiceInfo').textContent = !$('spVoice').checked ? 'Spodbude s piski.' : sp.voice ? 'Spodbude na glas: ' + sp.voice.name : 'Slovenski glas na tem telefonu ni na voljo – spodbude bodo s piski.'; }
+function beep(f = 880, d = 0.12, v = 0.25, delay = 0) {
+  if (!sp.ac) return; const t = sp.ac.currentTime + delay, o = sp.ac.createOscillator(), gn = sp.ac.createGain();
+  o.frequency.value = f; o.type = 'sine'; gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(v, t + 0.01); gn.gain.exponentialRampToValueAtTime(0.001, t + d);
+  o.connect(gn).connect(sp.ac.destination); o.start(t); o.stop(t + d + 0.05);
+}
+function say(txt, beeps) {
+  logEvent('say', { text: txt });
+  if ($('spVoice').checked && sp.voice && window.speechSynthesis) {
+    speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(txt); u.voice = sp.voice; u.lang = sp.voice.lang; u.rate = 1.15; u.volume = 1; speechSynthesis.speak(u);
+  } else (beeps || [[660, 0.12]]).forEach(([f, d], i) => beep(f, d, 0.3, i * 0.18));
+}
+function spShow(p) {
+  sp.phase = p;
+  ['spReady', 'spSkip', 'spRead', 'spEnd'].forEach(id => $(id).classList.toggle('hidden', id !== { ready: 'spReady', skip: 'spSkip', read: 'spRead', end: 'spEnd' }[p]));
+  document.body.classList.toggle('reading', p === 'read');
+  $('btnSpStop').classList.toggle('hidden', p === 'end' || p === 'read');
+  logEvent('phase', { phase: p });
+}
+async function startSpeech() {
+  if (!(await startSensors())) return;
+  sp.dur = +$('spSec').value; $('spSecTxt').textContent = sp.dur;
+  const ti = +$('spText').value; sp.text = GOVOR_TEXTS[ti >= 0 ? ti : Math.floor(Math.random() * GOVOR_TEXTS.length)];
+  sp.wpm = +$('spWpm').value;
+  Object.assign(rec.meta, { mode: 'govor', skipSec: sp.dur, text: sp.text.title, wpm: sp.wpm, voiceOn: $('spVoice').checked });
+  sp.voice = findVoice(); voiceInfo();
+  show('s-speech'); spShow('ready');
+}
+$('spVoice').addEventListener('change', voiceInfo);
+$('btnSpGo').addEventListener('click', () => {
+  // klik odklene zvok in govor (iOS)
+  try { sp.ac = sp.ac || new (window.AudioContext || window.webkitAudioContext)(); sp.ac.resume(); } catch (e) {}
+  if (window.speechSynthesis && $('spVoice').checked && sp.voice) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
+  det.reset(); sp.q = sp.qN = sp.cadSum = sp.cadN = sp.rmsMax = 0; sp.said = {}; sp.lastSay = 0; sp.lastLvl = ''; sp.stillSince = null;
+  sp.t0 = now(); spShow('skip'); logEvent('begin');
+  say('Začni!', [[880, 0.2]]);
+  let last = now();
+  clearInterval(sp.timer);
+  sp.timer = setInterval(() => {
+    const tn = now(), dt = tn - last; last = tn;
+    const el = tn - sp.t0, left = Math.max(0, sp.dur - el), st = det.state;
+    // moč gibanja: povprečna kakovost čez ves skiping (100 % = ves čas dobro)
+    sp.q += st.f * dt; sp.qN += dt; if (st.rms > sp.rmsMax) sp.rmsMax = st.rms;
+    if (!st.still) { sp.cadSum += st.cad * dt; sp.cadN += dt; }
+    const pct = Math.min(100, sp.q / sp.dur * 100);
+    $('spTime').textContent = Math.ceil(left); $('spBar').style.width = pct + '%'; $('spPct').textContent = Math.round(pct) + ' %';
+    $('spNow').style.width = Math.round(st.f * 100) + '%';
+    const lvl = st.level; $('spMsg').className = 'spMsg l-' + lvl;
+    // spodbude
+    const sec = Math.ceil(left);
+    for (const m of [20, 10]) if (sec === m && !sp.said[m] && sp.dur > m) { sp.said[m] = 1; say('Še ' + m + ' sekund!', [[990, 0.1], [990, 0.1]]); sp.lastSay = tn; }
+    if (sec <= 3 && sec >= 1 && !sp.said['c' + sec]) { sp.said['c' + sec] = 1; beep(1100, 0.08, 0.3); }
+    if (lvl === 'MIRUJE') { if (sp.stillSince === null) sp.stillSince = tn; } else sp.stillSince = null;
+    const msgs = { MIRUJE: ['Ne ustavljaj se!', 'Gremo, kolena gor!'], 'PREŠIBKO': ['Višje kolena!', 'Hitreje!', 'Močneje!'], DOBRO: ['Dobro – še močneje!', 'Tako, še malo hitreje!'], 'ODLIČNO': ['Odlično!', 'Super, tako naprej!'] };
+    const gap = { MIRUJE: 3.5, 'PREŠIBKO': 4, DOBRO: 6, 'ODLIČNO': 7 }[lvl];
+    if (el > 1.5 && (lvl !== sp.lastLvl ? tn - sp.lastSay > 2.5 : tn - sp.lastSay > gap) && !(lvl === 'MIRUJE' && (sp.stillSince === null || tn - sp.stillSince < 1.5))) {
+      const arr = msgs[lvl], txt = arr[Math.floor(Math.random() * arr.length)];
+      $('spMsg').textContent = txt;
+      say(txt, lvl === 'ODLIČNO' ? [[1320, 0.1]] : lvl === 'DOBRO' ? [[880, 0.1]] : [[440, 0.15], [440, 0.15]]);
+      sp.lastSay = tn; sp.lastLvl = lvl;
+    }
+    if (left <= 0) { clearInterval(sp.timer); startReading(); }
+  }, 100);
+});
+function startReading() {
+  const pct = Math.min(100, sp.q / sp.dur * 100);
+  sp.res = { power: Math.round(pct), cad: sp.cadN ? +(sp.cadSum / sp.cadN).toFixed(2) : 0, rmsMax: +sp.rmsMax.toFixed(1), steps: det.state.steps };
+  logEvent('skip_done', sp.res);
+  beep(660, 0.15, 0.35); beep(990, 0.25, 0.35, 0.18);
+  if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
+  if ($('spVoice').checked && sp.voice) say('Beri na glas.');
+  $('pText').innerHTML = `<h2>${sp.text.title}</h2>` + sp.text.text.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  sp.words = sp.text.text.split(/\s+/).length; sp.off = 0; sp.paused = false; sp.pauses = 0; sp.ended = false;
+  spShow('read'); $('pText').style.transform = 'translateY(0)';
+  sp.readT0 = now(); sp.startDelay = sp.readT0 + 1.5; // 1,5 s, da najde prvo vrstico
+  setSpeed(); sp.lastFrame = now();
+  cancelAnimationFrame(sp.raf); sp.raf = requestAnimationFrame(scrollStep);
+}
+function textSpan() { const el = $('pText'), cs = getComputedStyle(el); return el.scrollHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); }
+function setSpeed() { sp.pxs = textSpan() / (sp.words / sp.wpm * 60); $('pInfo').textContent = sp.wpm + ' besed/min'; }
+function scrollStep() {
+  const tn = now(), dt = Math.min(0.1, tn - sp.lastFrame); sp.lastFrame = tn;
+  if (!sp.paused && tn > sp.startDelay) sp.off += sp.pxs * dt;
+  const max = textSpan() - 40;
+  if (sp.off >= max) { sp.off = max; if (!sp.ended) { sp.ended = true; logEvent('text_end'); setTimeout(() => sp.phase === 'read' && finishSpeech('konec besedila'), 2500); } }
+  $('pText').style.transform = `translateY(${-sp.off}px)`;
+  if (sp.phase === 'read') sp.raf = requestAnimationFrame(scrollStep);
+}
+function togglePause() { sp.paused = !sp.paused; if (sp.paused) sp.pauses++; $('pPause').textContent = sp.paused ? '▶' : '❚❚'; logEvent(sp.paused ? 'pause' : 'resume', { off: Math.round(sp.off) }); }
+$('prompter').addEventListener('click', togglePause); $('pPause').addEventListener('click', togglePause);
+$('pSlow').addEventListener('click', () => { sp.wpm = Math.max(50, sp.wpm - 10); setSpeed(); logEvent('wpm', { wpm: sp.wpm }); });
+$('pFast').addEventListener('click', () => { sp.wpm = Math.min(200, sp.wpm + 10); setSpeed(); logEvent('wpm', { wpm: sp.wpm }); });
+$('pDone').addEventListener('click', () => finishSpeech('gumb'));
+const mmss = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
+function finishSpeech(why) {
+  if (sp.phase === 'end') return;
+  clearInterval(sp.timer); cancelAnimationFrame(sp.raf); try { speechSynthesis.cancel(); } catch (e) {}
+  const readS = sp.readT0 ? now() - sp.readT0 : 0, r = sp.res || {};
+  const readPct = sp.readT0 ? Math.min(100, Math.round(sp.off / Math.max(1, textSpan() - 40) * 100)) : 0;
+  rec.meta.results = Object.assign({}, r, { readSec: +readS.toFixed(1), readPct, pauses: sp.pauses, endWpm: sp.wpm, end: why });
+  logEvent('end', rec.meta.results);
+  $('spRes').innerHTML = [
+    ['Moč gibanja (kakovost skipinga)', r.power != null ? r.power + ' %' : '–'],
+    ['Povprečen tempo', r.cad ? r.cad.toFixed(1).replace('.', ',') + ' korakov/s' : '–'],
+    ['Čas branja', readS ? mmss(readS) : '–'], ['Prebrano besedilo', readPct + ' %'],
+    ['Premori', sp.pauses], ['Končna hitrost', sp.wpm + ' besed/min']
+  ].map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('');
+  spShow('end');
+}
+$('spFeel').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sp.feel = +b.dataset.v; rec.meta.feel = sp.feel; logEvent('feel', { v: sp.feel }); [...$('spFeel').children].forEach(x => x.classList.toggle('on', x === b)); });
+$('btnSpStop').addEventListener('click', () => sp.phase === 'ready' ? location.reload() : finishSpeech('prekinjeno'));
+$('btnSpAgain').addEventListener('click', () => location.reload());
+$('btnSave4').addEventListener('click', save);
 
 // ---------- vodeno snemanje (oznake za uglaševanje) ----------
 const CUES_SQUAT = [
@@ -808,15 +1124,25 @@ const CUES_PLANK = [
   ['MOČNO TAPKAJ PO ZASLONU', 'fake_tap', 5],
   ['DVIGNI IN POLOŽI NAZAJ NA ISTO MESTO', 'fake_same', 4], ['MIRUJ', 'lie', 3]
 ];
+const CUES_SKIP = [
+  ['STOJ MIRNO – telefon v roki', 'still', 5],
+  ['HODI NA MESTU', 'walk', 8], ['STOJ', 'still', 3],
+  ['LAHKOTEN TEK NA MESTU', 'jog', 8], ['STOJ', 'still', 3],
+  ['VISOKI SKIPING – SREDNJE', 'skip_mid', 10], ['STOJ, DIHAJ', 'still', 4],
+  ['VISOKI SKIPING – NA VSO MOČ', 'skip_max', 10], ['STOJ, DIHAJ', 'still', 5],
+  ['POČASEN VISOKI SKIPING', 'skip_slow', 8], ['STOJ', 'still', 3],
+  ['SAMO MAHAJ Z ROKO (noge mirujejo)', 'fake_arm', 6], ['STOJ', 'still', 3],
+  ['POSKAKUJ SONOŽNO NA MESTU', 'fake_jump', 6], ['STOJ MIRNO', 'still', 4]
+];
 let cueTimer = null;
 $('btnGuided').addEventListener('click', async () => {
   if (!(await startSensors())) return; rec.meta.mode = 'vodeno'; show('s-guided');
-  const CUES = PLANK() ? CUES_PLANK : CUES_SQUAT;
-  $('cHint').textContent = PLANK() ? 'Telefon leži na tleh ob roki, ti si v planku (lahko tudi na kolenih). Sledi napisom.' : 'Telefon drži, kot bi ga v igri. Sledi napisom.';
+  const CUES = SPEECH() ? CUES_SKIP : PLANK() ? CUES_PLANK : CUES_SQUAT;
+  $('cHint').textContent = SPEECH() ? 'Telefon drži v roki, kot bi ga med skipingom. Sledi napisom.' : PLANK() ? 'Telefon leži na tleh ob roki, ti si v planku (lahko tudi na kolenih). Sledi napisom.' : 'Telefon drži, kot bi ga v igri. Sledi napisom.';
   let i = 0, left = CUES[0][2];
   const showCue = () => {
     const [txt, lab, dur] = CUES[i]; left = dur;
-    $('cCue').textContent = txt; $('cCue').className = 'status ' + (lab.startsWith('squat') || lab.startsWith('move') ? 'st-V_POCEPU' : lab.startsWith('fake') ? 'st-SPUSCA' : 'st-STOJI');
+    $('cCue').textContent = txt; $('cCue').className = 'status ' + (lab.startsWith('squat') || lab.startsWith('move') || lab.startsWith('skip') ? 'st-V_POCEPU' : lab.startsWith('fake') ? 'st-SPUSCA' : 'st-STOJI');
     $('cStep').textContent = (i + 1) + '/' + CUES.length; $('cLeft').textContent = left + ' s';
     $('cNext').textContent = CUES[i + 1] ? 'Nato: ' + CUES[i + 1][0].toLowerCase() : '';
     logEvent('cue', { label: lab, text: txt, dur });
