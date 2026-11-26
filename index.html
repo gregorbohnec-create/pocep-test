@@ -124,7 +124,7 @@ input[type=range]{width:100%;height:36px}
     <label for="thr">Prag počepa: <span id="thrVal">20</span> cm</label>
     <input type="range" id="thr" min="10" max="45" value="20">
     <div class="kv" style="margin-top:8px">
-      <span>Navpični pospešek</span><b id="kAv">–</b>
+      <span>Nagib telefona (0° = leži)</span><b id="kAv">–</b>
       <span>Telefon miruje</span><b id="kStill">–</b>
       <span>Vzorčenje</span><b id="kHz">–</b>
       <span>Gravitacija ločeno</span><b id="kLin">–</b>
@@ -136,31 +136,30 @@ input[type=range]{width:100%;height:36px}
 </section>
 
 <script>
-// Prepoznavanje počepa iz senzorjev telefona (DeviceMotionEvent) – različica 2.
-// Na pravem telefonu v roki telefon nikoli popolnoma ne miruje, zato ne iščemo
-// mirovanja, ampak kratkotrajne spremembe višine:
-// 1) navpični pospešek (glede na smer gravitacije),
-// 2) "izgubljajoča" integracija v hitrost in višino (časovna konstanta tau):
-//    počasno lezenje napake izgine, hiter spust/dvig (~0,5–3 s) ostane viden,
-// 3) histereza: višina pade pod -pragDol -> V POČEPU; zraste nad +pragGor -> STOJI.
+// Prepoznavanje počepa – telefon v roki (različica 4: višina + lega telefona).
+// Iz posnetkov (26. 11. 2026): v počepu otrok/odrasli telefon drži skoraj vodoravno
+// (gleda navzdol), stoje bolj pokonci. Združimo dva znaka:
+//  - kratkotrajna sprememba višine (izgubljajoča integracija navpičnega pospeška, tau 1 s)
+//  - lega telefona: kot med zaslonom in vodoravnico (0° = leži ravno, 90° = pokonci)
+// V POČEPU: (spust >= dropMin v zadnjih `recent` s IN telefon vodoraven <= flatMax°) ALI spust >= strong
+// STOJI:    (dvig >= riseMin v zadnjih `recent` s IN telefon pokonci >= uprightMin°) ALI dvig >= strong
 (function (root) {
   const G = 9.81;
-
   function createDetector(opts) {
     const o = Object.assign({
-      thresholdDown: 0.2,   // m – spust, ki šteje kot počep
-      thresholdUp: 0.2,     // m – dvig, ki šteje kot vstajanje
-      tau: 1.0,             // s – časovna konstanta "pozabljanja" hitrosti in višine
-      minHold: 2.0,         // s – po prehodu stanja toliko časa ne sprejmemo nasprotnega (odboj roke)
-      gravityTau: 1.5,      // s – glajenje gravitacije, ko je telefon ne poda ločeno
-      showMove: 0.08        // m – od tu naprej prikažemo SPUSCA/DVIGUJE
+      dropMin: 0.12, riseMin: 0.12,   // m – manjši spust/dvig, če se ujema z lego
+      strong: 0.3,                    // m – izrazit spust/dvig šteje tudi brez lege
+      flatMax: 30,                    // ° – telefon "vodoraven" (počep)
+      uprightMin: 45,                 // ° – telefon "pokonci" (stoji)
+      holdTilt: 0.3,                  // s – lega mora trajati vsaj toliko
+      recent: 3.0,                    // s – okno, v katerem iščemo spust/dvig
+      minHold: 1.0,                   // s – najkrajši čas med prehodi
+      tau: 1.0, gravityTau: 1.5, showMove: 0.08,
+      thresholdDown: 0.12, thresholdUp: 0.12   // za graf
     }, opts || {});
-
-    const s = {
-      state: 'STOJI', shown: 'STOJI', squats: 0,
-      v: 0, p: 0, ref: 0, aV: 0, mean: 0, still: false,
-      g: null, lastT: null, lastChange: -1e9, peak: 0, armed: true
-    };
+    const s = { state: 'STOJI', shown: 'STOJI', squats: 0, v: 0, p: 0, ref: 0, aV: 0, mean: 0, still: false,
+      tilt: 90, flatFor: 0, uprightFor: 0, g: null, lastT: null, lastChange: -1e9 };
+    const hist = []; // [t, p]
     const events = [];
     const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
 
@@ -168,50 +167,48 @@ input[type=range]{width:100%;height:36px}
       if (s.lastT === null) s.lastT = t;
       let dt = t - s.lastT; s.lastT = t;
       if (!(dt > 0) || dt > 0.2) dt = 1 / 60;
-
       let lin, gv;
-      if (a && ag && isFinite(a.x) && isFinite(ag.x)) {
-        gv = { x: ag.x - a.x, y: ag.y - a.y, z: ag.z - a.z }; lin = a;
-      } else if (ag && isFinite(ag.x)) {
+      if (a && ag && isFinite(a.x) && isFinite(ag.x)) { gv = { x: ag.x - a.x, y: ag.y - a.y, z: ag.z - a.z }; lin = a; }
+      else if (ag && isFinite(ag.x)) {
         const k = Math.min(1, dt / o.gravityTau);
         s.g = s.g ? { x: s.g.x + k * (ag.x - s.g.x), y: s.g.y + k * (ag.y - s.g.y), z: s.g.z + k * (ag.z - s.g.z) } : { x: ag.x, y: ag.y, z: ag.z };
         gv = s.g; lin = { x: ag.x - gv.x, y: ag.y - gv.y, z: ag.z - gv.z };
       } else return s;
-
       const gn = Math.hypot(gv.x, gv.y, gv.z) || G;
-      const aV = (lin.x * gv.x + lin.y * gv.y + lin.z * gv.z) / gn; // + = navzgor
-      s.aV = aV; s.mean = Math.hypot(lin.x, lin.y, lin.z);
+      s.aV = (lin.x * gv.x + lin.y * gv.y + lin.z * gv.z) / gn;
+      s.mean = Math.hypot(lin.x, lin.y, lin.z);
+      // kot zaslona glede na vodoravnico: 0° = leži, 90° = pokonci
+      s.tilt = Math.acos(Math.min(1, Math.abs(gv.z) / gn)) * 180 / Math.PI;
+      s.flatFor = s.tilt <= o.flatMax ? s.flatFor + dt : 0;
+      s.uprightFor = s.tilt >= o.uprightMin ? s.uprightFor + dt : 0;
 
       const leak = Math.max(0, 1 - dt / o.tau);
-      s.v = s.v * leak + aV * dt;
+      s.v = s.v * leak + s.aV * dt;
       s.p = s.p * leak + s.v * dt;
       s.still = Math.abs(s.v) < 0.05;
+      hist.push([t, s.p]); while (hist.length && hist[0][0] < t - o.recent) hist.shift();
+      let pmin = 0, pmax = 0; for (const h of hist) { if (h[1] < pmin) pmin = h[1]; if (h[1] > pmax) pmax = h[1]; }
+      const can = t - s.lastChange >= o.minHold;
 
-      // prehod sprožimo le ob PREČKANJU praga, ki se zgodi po izteku minHold
-      // (če je višina v trenutku izteka že čez prag, gre za odboj in ga ne štejemo)
-      const canChange = t - s.lastChange >= o.minHold;
-      if (s.state === 'STOJI') {
-        const over = s.p <= -o.thresholdDown;
-        if (!over) s.armed = true;
-        if (over && canChange && s.armed) { s.state = 'V_POCEPU'; s.lastChange = t; s.armed = false; emit(t, 'state', { state: s.state, disp: +s.p.toFixed(3) }); }
-        else if (over && !canChange) s.armed = false;
-      } else {
-        const over = s.p >= o.thresholdUp;
-        if (!over) s.armed = true;
-        if (over && canChange && s.armed) { s.state = 'STOJI'; s.lastChange = t; s.armed = false; s.squats++; emit(t, 'state', { state: s.state, disp: +s.p.toFixed(3), squat: s.squats }); }
-        else if (over && !canChange) s.armed = false;
+      if (s.state === 'STOJI' && can) {
+        const byTilt = pmin <= -o.dropMin && s.flatFor >= o.holdTilt;
+        const byDrop = s.p <= -o.strong;
+        if (byTilt || byDrop) { s.state = 'V_POCEPU'; s.lastChange = t; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmin.toFixed(3), tilt: Math.round(s.tilt), by: byTilt ? 'lega' : 'spust' }); }
+      } else if (s.state === 'V_POCEPU' && can) {
+        const byTilt = pmax >= o.riseMin && s.uprightFor >= o.holdTilt;
+        const byRise = s.p >= o.strong;
+        if (byTilt || byRise) { s.state = 'STOJI'; s.lastChange = t; s.squats++; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmax.toFixed(3), tilt: Math.round(s.tilt), squat: s.squats, by: byTilt ? 'lega' : 'dvig' }); }
       }
       let shown = s.state;
-      if (s.state === 'STOJI' && s.p <= -o.showMove) shown = 'SPUSCA';
-      if (s.state === 'V_POCEPU' && s.p >= o.showMove) shown = 'DVIGUJE';
+      if (s.state === 'STOJI' && (s.p <= -o.showMove || s.flatFor > 0.15)) shown = 'SPUSCA';
+      if (s.state === 'V_POCEPU' && (s.p >= o.showMove || s.uprightFor > 0.15)) shown = 'DVIGUJE';
       if (shown !== s.shown) { s.shown = shown; emit(t, 'shown', { shown }); }
       return s;
     }
-    function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.v = s.p = s.ref = 0; s.lastChange = -1e9; events.length = 0; }
+    function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.v = s.p = 0; s.lastChange = -1e9; hist.length = 0; events.length = 0; }
     function height() { return s.p; }
     return { update, reset, height, state: s, events, opts: o };
   }
-
   const api = { createDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SquatDetector = api;
 })(this);
@@ -335,17 +332,18 @@ function showWarn(t) { const w = $('sensorWarn'); w.textContent = t; w.classList
 // ---------- simulator (za preizkus brez telefona: ?sim=1) ----------
 let simQueue = [];
 function startSim() {
-  const up = [0.3, 0.9, 0.3], n = Math.hypot(...up), u = up.map(v => v / n);
-  let tt = 0;
+  // simulator: stoje telefon pokonci (~65°), v počepu skoraj vodoraven (~10°)
+  let tt = 0, tilt = 65, tiltTo = 65;
   setInterval(() => {
     let aV = 0;
-    if (simQueue.length) { const m = simQueue[0]; const tau = m.k / (m.T * 60); aV = m.dz * (60 * tau - 180 * tau ** 2 + 120 * tau ** 3) / (m.T * m.T); if (++m.k >= m.T * 60) simQueue.shift(); }
+    if (simQueue.length) { const m = simQueue[0]; const tau = m.k / (m.T * 60); aV = m.dz * (60 * tau - 180 * tau ** 2 + 120 * tau ** 3) / (m.T * m.T); tilt = m.from + (m.to - m.from) * tau; if (++m.k >= m.T * 60) { tilt = m.to; simQueue.shift(); } }
+    const r = tilt * Math.PI / 180, u = [0, Math.sin(r), Math.cos(r)];   // smer "gor" v koordinatah telefona
     const noise = () => (Math.random() - .5) * 0.1;
     const lin = u.map(x => x * aV + noise());
     onMotion({ timeStamp: (tt += 1000 / 60), acceleration: { x: lin[0], y: lin[1], z: lin[2] }, accelerationIncludingGravity: { x: lin[0] + 9.81 * u[0], y: lin[1] + 9.81 * u[1], z: lin[2] + 9.81 * u[2] }, rotationRate: {}, interval: 16 });
   }, 1000 / 60);
-  window.simSquat = () => simQueue.push({ dz: -0.45, T: 1.0, k: 0 });
-  window.simStand = () => simQueue.push({ dz: 0.45, T: 1.0, k: 0 });
+  window.simSquat = () => simQueue.push({ dz: -0.45, T: 1.0, k: 0, from: 65, to: 10 });
+  window.simStand = () => simQueue.push({ dz: 0.45, T: 1.0, k: 0, from: 10, to: 65 });
 }
 
 // ---------- zasloni ----------
