@@ -74,7 +74,8 @@ input[type=range]{width:100%;height:36px}
     </div>
     <label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
     <select id="where"><option value="hand">drži v roki</option><option value="floor">položi na tla</option></select>
-    <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="showCombo"> Kombinacija ves čas vidna</label>
+    <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="showStand" checked> Kombinacija vidna, ko stojim</label>
+    <label style="margin-top:6px;font-weight:600"><input type="checkbox" id="showCombo"> Kombinacija vidna tudi v počepu</label>
   </div>
   <div id="sensorWarn" class="warn hidden"></div>
   <button class="big" id="btnGame">Začni igro</button>
@@ -86,7 +87,7 @@ input[type=range]{width:100%;height:36px}
 <section class="screen" id="s-game">
   <div class="top"><span id="gRound">Krog 1/5</span><span id="gTime">0,0 s</span></div>
   <div class="status st-STOJI" id="gStatus">STOJI</div>
-  <div id="gComboWrap" class="card hidden"><div class="combo" id="gCombo"></div></div>
+  <div id="gComboWrap" class="card hidden"><p class="muted" style="text-align:center;margin-bottom:6px">Prava kombinacija</p><div class="combo" id="gCombo"></div></div>
   <div id="gMemo" class="hidden">
     <p class="msg">Zapomni si kombinacijo</p>
     <div class="card"><div class="combo" id="gMemoCombo"></div></div>
@@ -365,13 +366,14 @@ function phase(p) {
   $('gPick').classList.toggle('hidden', p !== 'pick');
   $('gEarly').classList.toggle('hidden', p !== 'early');
   $('gStand').classList.toggle('hidden', p !== 'done');
-  $('gComboWrap').classList.toggle('hidden', !($('showCombo').checked && p !== 'memo'));
+  const standing = p === 'go' || p === 'done' || p === 'early';
+  $('gComboWrap').classList.toggle('hidden', !(p !== 'memo' && p !== 'idle' && ($('showCombo').checked || ($('showStand').checked && standing))));
   logEvent('phase', { phase: p, round: g.round });
 }
 async function startGame() {
   if (!(await startSensors())) return;
   g.on = true; g.rounds = +$('rounds').value; g.round = 0; g.results = []; g.target = pickCombo();
-  rec.meta.target = g.target.map(i => NAMES[i]); rec.meta.mode = 'igra';
+  rec.meta.target = g.target.map(i => NAMES[i]); rec.meta.mode = 'igra'; rec.meta.showStand = $('showStand').checked; rec.meta.showCombo = $('showCombo').checked;
   renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target);
   show('s-game'); setStatus($('gStatus'), det.state.shown);
   let left = +$('memo').value; $('gCount').textContent = left; phase('memo');
