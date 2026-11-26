@@ -148,7 +148,7 @@ input[type=range]{width:100%;height:36px}
 </section>
 
 <script>
-// Prepoznavanje počepa – telefon v roki (različica 5).
+// Prepoznavanje počepa – telefon v roki (različica 6, uglašena na snemanju z navodili).
 // Glavni znak je kratkotrajna sprememba višine (izgubljajoča integracija navpičnega pospeška).
 // Lega telefona je samo pomožni znak: če se ob spustu telefon opazno zravna v vodoravno
 // (oz. ob dvigu postavi bolj pokonci), zadošča manjši spust/dvig. Telefon lahko otrok
@@ -159,18 +159,19 @@ input[type=range]{width:100%;height:36px}
   const G = 9.81;
   function createDetector(opts) {
     const o = Object.assign({
-      dropMin: 0.2,          // m – spust, ki šteje kot počep
-      riseMin: 0.15,         // m – dvig, ki šteje kot vstajanje
+      dropMin: 0.15,         // m – spust, ki šteje kot počep (uglašeno na snemanju z navodili 26. 11.)
+      riseMin: 0.12,         // m – dvig, ki šteje kot vstajanje
       dropTilt: 0.12,        // m – manjši spust, če se telefon hkrati zravna v vodoravno
       riseTilt: 0.1,         // m – manjši dvig, če se telefon hkrati postavi pokonci
-      tiltChange: 15,        // ° – sprememba lege, ki šteje kot pomožni znak
+      tiltChange: 90,        // ° – sprememba lege kot pomožni znak (90 = izklopljeno; lega ni zanesljiva)
+      postRiseBlock: 2.6,    // s – po vstajanju toliko časa ne štejemo spusta (odboj roke), razen po standNow()
       recent: 3.0,           // s – okno za spust/dvig in primerjavo lege
       minHold: 1.0,          // s – najkrajši čas med prehodi
       tau: 1.0, gravityTau: 1.5, showMove: 0.08,
-      thresholdDown: 0.2, thresholdUp: 0.15   // za graf
+      thresholdDown: 0.15, thresholdUp: 0.12   // za graf
     }, opts || {});
     const s = { state: 'STOJI', shown: 'STOJI', squats: 0, v: 0, p: 0, ref: 0, aV: 0, mean: 0, still: false,
-      tilt: 90, g: null, lastT: null, lastChange: -1e9 };
+      tilt: 90, g: null, lastT: null, lastChange: -1e9, blockUntil: 0, armedDown: true };
     const hist = []; // [t, p, tilt]
     const events = [];
     const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
@@ -199,8 +200,9 @@ input[type=range]{width:100%;height:36px}
       let pmin = 0, pmax = 0, tmax = s.tilt, tmin = s.tilt;
       for (const h of hist) { if (h[1] < pmin) pmin = h[1]; if (h[1] > pmax) pmax = h[1]; if (h[2] > tmax) tmax = h[2]; if (h[2] < tmin) tmin = h[2]; }
       const can = t - s.lastChange >= o.minHold;
+      if (!s.armedDown && t >= s.blockUntil && s.p > -o.dropMin * 0.5) s.armedDown = true; // po odboju se višina umiri
 
-      if (s.state === 'STOJI' && can) {
+      if (s.state === 'STOJI' && can && s.armedDown) {
         const flatter = tmax - s.tilt >= o.tiltChange;
         const byDrop = s.p <= -o.dropMin;
         const byTilt = flatter && pmin <= -o.dropTilt;
@@ -209,7 +211,7 @@ input[type=range]{width:100%;height:36px}
         const upright = s.tilt - tmin >= o.tiltChange;
         const byRise = s.p >= o.riseMin;
         const byTilt = upright && pmax >= o.riseTilt;
-        if (byRise || byTilt) { s.state = 'STOJI'; s.lastChange = t; s.squats++; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmax.toFixed(3), tilt: Math.round(s.tilt), squat: s.squats, by: byRise ? 'dvig' : 'dvig+lega' }); }
+        if (byRise || byTilt) { s.state = 'STOJI'; s.lastChange = t; s.blockUntil = t + o.postRiseBlock; s.armedDown = false; s.squats++; hist.length = 0; emit(t, 'state', { state: s.state, disp: +pmax.toFixed(3), tilt: Math.round(s.tilt), squat: s.squats, by: byRise ? 'dvig' : 'dvig+lega' }); }
       }
       let shown = s.state;
       if (s.state === 'STOJI' && s.p <= -o.showMove) shown = 'SPUSCA';
@@ -221,10 +223,10 @@ input[type=range]{width:100%;height:36px}
     function standNow() {
       const t = s.lastT || 0;
       if (s.state !== 'STOJI') emit(t, 'state', { state: 'STOJI', by: 'klik' });
-      s.state = 'STOJI'; s.lastChange = t; s.v = 0; s.p = 0; hist.length = 0;
+      s.state = 'STOJI'; s.lastChange = t; s.blockUntil = 0; s.armedDown = true; s.v = 0; s.p = 0; hist.length = 0;
       if (s.shown !== 'STOJI') { s.shown = 'STOJI'; emit(t, 'shown', { shown: 'STOJI' }); }
     }
-    function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.v = s.p = 0; s.lastChange = -1e9; hist.length = 0; events.length = 0; }
+    function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.v = s.p = 0; s.lastChange = -1e9; s.blockUntil = 0; s.armedDown = true; hist.length = 0; events.length = 0; }
     function height() { return s.p; }
     return { update, reset, standNow, height, state: s, events, opts: o };
   }
@@ -505,6 +507,7 @@ $('btnGuided').addEventListener('click', async () => {
     $('cStep').textContent = (i + 1) + '/' + CUES.length; $('cLeft').textContent = left + ' s';
     $('cNext').textContent = CUES[i + 1] ? 'Nato: ' + CUES[i + 1][0].toLowerCase() : '';
     logEvent('cue', { label: lab, text: txt, dur });
+    if ((lab.startsWith('squat') || lab === 'fake_arm_down' || lab === 'fake_flat' || lab === 'fake_bend' || lab === 'fake_walk') && det.standNow) det.standNow(); // kot klik v igri
     if (navigator.vibrate) navigator.vibrate(80);
   };
   showCue();
