@@ -43,6 +43,9 @@ button:focus-visible{outline:3px solid var(--squat);outline-offset:2px}
 .bigCombo .combo svg{width:88px;height:118px}.bigCombo .combo{gap:10px;padding:6px 0}
 #gComboWrap,#gMemo .card{background:#fff}
 .bean.sel{border-color:var(--ink);background:#efeaff}
+.beans.b20{gap:6px;padding:8px}.beans.b20 .bean{min-height:min(19vh,150px);padding:4px 0;border-radius:14px}.beans.b20 .bean svg{width:60px;height:90px}
+body.clean #s-game .top,body.clean #gStatus,body.clean #gPickMsg,body.clean #btnStop{display:none!important}body.clean #gPick{margin-top:max(8px,env(safe-area-inset-top))}
+#gComboWrap.bigCombo .combo svg{width:58px;height:80px}#gComboWrap.bigCombo .combo{gap:8px}
 .bean.sel svg{transform:scale(.9)}
 .msg{text-align:center;font-size:22px;font-weight:800;padding:10px 0}
 .verdict{font-size:72px;text-align:center;line-height:1}
@@ -81,7 +84,9 @@ input[type=range]{width:100%;height:36px}
         <select id="memo"><option value="10" selected>10 s</option><option value="20">20 s</option><option value="40">40 s</option></select></div>
     </div>
     <label for="flash" style="margin-top:12px">Prikaz kombinacije</label>
-    <select id="flash"><option value="stand" class="onlySquat" selected>ves čas, ko je telefon na mizi</option><option value="1">1 s na začetku kroga</option><option value="2">2 s na začetku kroga</option><option value="3">3 s na začetku kroga</option><option value="4">4 s na začetku kroga</option><option value="5">5 s na začetku kroga</option></select>
+    <select id="flash"><option value="stand" class="onlySquat">ves čas, ko je telefon na mizi</option><option value="1">1 s na začetku kroga</option><option value="2">2 s na začetku kroga</option><option value="3">3 s na začetku kroga</option><option value="4">4 s na začetku kroga</option><option value="5">5 s na začetku kroga</option><option value="m4" selected>4 s ali do začetka premika</option></select>
+    <label for="pool" style="margin-top:12px">Fižolčki za izbiro</label>
+    <select id="pool"><option value="20" selected>20 (vsaka barva dvakrat), vsak krog premešani</option><option value="10">10 na stalnem mestu</option></select>
     <label class="onlySquat" style="margin-top:8px;font-weight:600"><input type="checkbox" id="newEach"> Nova kombinacija vsak krog</label>
     <div class="onlySquat"><label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
     <select id="where"><option value="table" selected>položi na tla, nato nazaj na mizo (priporočeno)</option><option value="hand">drži v roki</option></select>
@@ -268,13 +273,14 @@ input[type=range]{width:100%;height:36px}
       lieMax: 0.6,        // m/s² – največji sunek pri ležanju (dotik zaslona je manjši)
       floorDrop: 0.3,     // m – z mize na tla: vsaj toliko nižje od zadnjega položaja na mizi
       riseUp: 0.3,        // m – s tal na mizo: vsaj toliko višje od zadnjega položaja na tleh
+      startDist: 0.10,    // m – sproten navpični premik, ko javimo 'začel se je premik' (klik na zaslon < 3 cm)
       settle: 0.15,       // m – manjši premik na isti ravni (prestavi telefon) osveži referenco
       maxCarry: 12,       // s – daljši prenos (hoja okoli) zavržemo
       gravityTau: 0.5,
       thresholdDown: 0.3, thresholdUp: 0.3 // za graf
     }, opts || {});
     const s = { state: 'STOJI', shown: 'STOJI', level: 'NEZNANO', squats: 0, h: 0, v: 0, p: 0,
-      lying: false, carrying: false, carryStart: 0, levelH: 0, gLie: 9.81, noLinear: false, aV: 0, mean: 0, still: false, tilt: 90, ref: 0, lastT: null, g: null, lastLie: null };
+      lying: false, carrying: false, started: false, carryStart: 0, levelH: 0, gLie: 9.81, noLinear: false, aV: 0, mean: 0, still: false, tilt: 90, ref: 0, lastT: null, g: null, lastLie: null };
     const buf = []; const events = [];
     const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
     const setShown = (t, sh) => { if (s.shown !== sh) { s.shown = sh; emit(t, 'shown', { shown: sh }); } };
@@ -338,10 +344,11 @@ input[type=range]{width:100%;height:36px}
       } else {
         if (s.lying || !s.carrying) {
           // začetek prenosa: integriramo od začetka okna (gib se je začel malo prej)
-          s.carrying = true; s.v = 0; s.p = 0;
+          s.carrying = true; s.started = false; s.v = 0; s.p = 0;
           let pt = buf[0] ? buf[0].t : t; s.carryStart = pt;
           for (const b of buf) { const bd = b.t - pt; pt = b.t; s.v += b.aV * bd; s.p += s.v * bd; }
         } else { s.v += aV * dt; s.p += s.v * dt; }
+        if (!s.started && Math.abs(s.p) >= o.startDist) { s.started = true; emit(t, 'moving', { after: +(t - s.carryStart).toFixed(2) }); }
         s.lying = false;
         if (s.level !== 'NEZNANO') setShown(t, s.state === 'STOJI' ? 'SPUSCA' : 'DVIGUJE');
       }
@@ -509,12 +516,14 @@ function makeDetector() {
 }
 const PLANK = () => $('exercise').value === 'plank';
 const TABLE = () => !PLANK() && $('where').value === 'table';
-const FLASH = () => $('flash').value === 'stand' ? 0 : +$('flash').value;
+const FLASH = () => $('flash').value === 'stand' ? 0 : +$('flash').value.replace('m', '');
+const HIDE_ON_MOVE = () => $('flash').value[0] === 'm';
+const POOL = () => +$('pool').value;
 function syncSettings() {
   const pl = PLANK();
   document.querySelectorAll('.onlySquat').forEach(el => el.classList.toggle('hidden', pl));
-  if (pl && $('flash').value === 'stand') $('flash').value = '4';
-  if (pl && !syncSettings.plankSet) { $('flash').value = '4'; $('nBeans').value = '3'; $('rounds').value = '999'; syncSettings.plankSet = true; }
+  if (pl && $('flash').value === 'stand') $('flash').value = 'm4';
+  if (pl && !syncSettings.plankSet) { $('flash').value = 'm4'; $('pool').value = '10'; $('nBeans').value = '3'; $('rounds').value = '999'; syncSettings.plankSet = true; }
   $('intro').textContent = pl
     ? 'Plank: telefon leži na tleh ob eni roki. Pokaže se kombinacija – zapomni si jo; skrije se po nastavljenem času ali takoj, ko začneš premikati telefon. Z isto roko prestavi telefon k drugi roki, prenesi težo in z drugo roko izberi prave fižolčke. Klikni »Naslednji krog« in telefon prestavi nazaj. Tako levo–desno, dokler zdržiš. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.'
     : 'Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi prave (3–5, nastaviš spodaj), telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.';
@@ -600,7 +609,7 @@ function comboVisible(p) {
   if ($('showCombo').checked) return true;
   const standing = p === 'go' || p === 'done' || p === 'early';
   if (!FLASH()) return standing;                 // ves čas, ko je telefon na mizi
-  return now() < g.flashUntil;                    // le nekaj sekund na začetku kroga
+  return p === 'go' && now() < g.flashUntil;      // le nekaj sekund na začetku kroga (ali do premika)
 }
 function refreshCombo() { $('gComboWrap').classList.toggle('hidden', !comboVisible(g.phase)); }
 function phase(p) {
@@ -609,6 +618,8 @@ function phase(p) {
   $('gMemo').classList.toggle('hidden', !(p === 'memo' || p === 'show'));
   $('gCount').classList.toggle('hidden', p === 'show');
   $('gMemo').classList.toggle('bigCombo', pl);
+  $('gComboWrap').classList.toggle('bigCombo', !!FLASH());
+  document.body.classList.toggle('clean', p === 'pick'); // med izbiro samo fižolčki
   $('gRight').classList.toggle('bigCombo', pl);
   $('gMemoMsg').textContent = 'Zapomni si kombinacijo';
   $('gGo').classList.toggle('hidden', !(p === 'go' || p === 'move'));
@@ -627,7 +638,7 @@ function phase(p) {
 async function startGame() {
   if (!(await startSensors())) return;
   g.on = true; g.n = +$('nBeans').value; g.rounds = +$('rounds').value; g.round = 0; g.results = []; g.target = pickCombo();
-  Object.assign(rec.meta, { target: g.target.map(i => NAMES[i]), nBeans: g.n, mode: 'igra', flash: $('flash').value, newEach: PLANK() || $('newEach').checked, showCombo: $('showCombo').checked });
+  Object.assign(rec.meta, { target: g.target.map(i => NAMES[i]), nBeans: g.n, mode: 'igra', flash: $('flash').value, pool: POOL(), newEach: PLANK() || $('newEach').checked, showCombo: $('showCombo').checked });
   renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target);
   show('s-game'); setStatus($('gStatus'), det.state.shown);
   $('gRound').textContent = ENDLESS() ? 'Krog 0' : `Krog 0/${g.rounds}`;
@@ -654,8 +665,11 @@ function nextRound() {
   if (g.round >= g.rounds) return finish();
   g.round++; g.sel = []; g.early = 0; g.start = now(); g.moved = false; g.lastMove = null;
   if (PLANK() || ($('newEach').checked && g.round > 1)) { g.target = pickCombo(); renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target); logEvent('target', { target: g.target.map(i => NAMES[i]) }); }
-  g.order = [...Array(10).keys()]; // stalni vrstni red kot v aplikaciji (4 + 4 + 2)
-  $('gBeans').innerHTML = g.order.map(i => `<button class="bean" data-i="${i}" aria-label="${NAMES[i]}">${beanSvg(COLORS[i])}</button>`).join('');
+  // 10: stalni vrstni red kot v aplikaciji (4 + 4 + 2); 20: vsaka barva dvakrat, vsak krog premešano
+  g.order = POOL() === 20 ? [...Array(20).keys()].map(k => k % 10).sort(() => Math.random() - .5) : [...Array(10).keys()];
+  $('gBeans').classList.toggle('b20', POOL() === 20);
+  $('gBeans').innerHTML = g.order.map((c, k) => `<button class="bean" data-k="${k}" aria-label="${NAMES[c]}">${beanSvg(COLORS[c])}</button>`).join('');
+  logEvent('layout', { order: g.order.map(c => NAMES[c]) });
   $('gRound').textContent = ENDLESS() ? `Krog ${g.round}` : `Krog ${g.round}/${g.rounds}`;
   updatePickMsg();
   if (PLANK()) {
@@ -669,8 +683,9 @@ function nextRound() {
   phase(det.state.state === 'V_POCEPU' && !det.standNow ? 'pick' : 'go');
 }
 function updatePickMsg() { const k = N() - g.sel.length; $('gPickMsg').textContent = k > 0 ? `Izberi ${k} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][k]}` : (TABLE() ? 'Zdaj telefon nesi nazaj na mizo' : 'Zdaj vstani'); }
+function selColors() { return g.sel.map(k => g.order[k]); }
 function verdict() {
-  const ok = g.sel.slice().sort((a, b) => a - b).join() === g.target.join();
+  const ok = selColors().sort((a, b) => a - b).join() === g.target.join(); // ista barva dvakrat = napaka
   g.lastOk = ok; $('gVerdict').textContent = ok ? '✓' : '✗'; $('gVerdict').style.color = ok ? 'var(--ok)' : 'var(--bad)';
   renderCombo($('gRightCombo'), g.target);
   $('btnNext').textContent = g.round >= g.rounds ? 'Končaj' : 'Naslednji krog';
@@ -679,10 +694,10 @@ function verdict() {
 }
 $('gBeans').addEventListener('click', e => {
   const b = e.target.closest('.bean'); if (!b || g.phase !== 'pick') return;
-  const i = +b.dataset.i, k = g.sel.indexOf(i);
+  const slot = +b.dataset.k, k = g.sel.indexOf(slot);
   if (k >= 0) { g.sel.splice(k, 1); b.classList.remove('sel'); }
-  else if (g.sel.length < N()) { g.sel.push(i); b.classList.add('sel'); }
-  logEvent('tap', { bean: NAMES[i], selected: g.sel.length });
+  else if (g.sel.length < N()) { g.sel.push(slot); b.classList.add('sel'); }
+  logEvent('tap', { bean: NAMES[g.order[slot]], slot, selected: g.sel.length });
   updatePickMsg();
   if (PLANK() && g.sel.length === N()) setTimeout(() => { if (g.phase === 'pick') verdict(); }, 250);
 });
@@ -698,13 +713,14 @@ function onDet(e) {
   }
   if (!g.on) return;
   if (pl) {
-    if (e.type === 'moving' && g.phase === 'show') { clearTimeout(g.timer); phase('move'); return; } // kombinacija se skrije ob začetku premika
+    if (e.type === 'moving' && g.phase === 'show' && HIDE_ON_MOVE()) { clearTimeout(g.timer); phase('move'); return; } // kombinacija se skrije ob začetku premika
     if (e.type !== 'move') return;
     if (navigator.vibrate) navigator.vibrate(60);
     if (g.phase === 'move') { g.lastMove = e; phase('pick'); }
     else if (g.phase === 'show') { g.lastMove = e; g.moved = true; }
     return;
   }
+  if (e.type === 'moving' && HIDE_ON_MOVE() && g.flashUntil > now()) { g.flashUntil = 0; refreshCombo(); logEvent('hide', { reason: 'premik' }); }
   if (e.type !== 'state') return;
   if (e.state === 'V_POCEPU' && (g.phase === 'go' || g.phase === 'early')) phase('pick');
   else if (e.state === 'STOJI' && g.phase === 'pick') {
@@ -715,7 +731,7 @@ function onDet(e) {
 $('btnNext').addEventListener('click', () => {
   if (g.phase !== 'done') return;
   const time = now() - g.start;
-  const r = { round: g.round, time: +time.toFixed(2), ok: g.lastOk, early: g.early, picked: g.sel.map(i => NAMES[i]), target: g.target.map(i => NAMES[i]) };
+  const r = { round: g.round, time: +time.toFixed(2), ok: g.lastOk, early: g.early, picked: selColors().map(i => NAMES[i]), target: g.target.map(i => NAMES[i]) };
   if (PLANK() && g.lastMove) r.moveCm = Math.round(g.lastMove.dist * 100);
   g.results.push(r);
   logEvent('round', r);
