@@ -65,13 +65,15 @@ input[type=range]{width:100%;height:36px}
 <!-- ZAČETEK -->
 <section class="screen on" id="s-start">
   <h1>Neurobeans – test počepa</h1>
-  <p class="muted">Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi pravih 5, telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.</p>
+  <p class="muted">Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi prave (3–5, nastaviš spodaj), telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.</p>
   <div class="card">
     <label for="note">Kdo testira in kako (za posnetek)</label>
     <input type="text" id="note" placeholder="npr. Gregor, desna roka, normalni počepi">
     <div class="row" style="margin-top:12px">
       <div><label for="rounds">Krogov</label>
         <select id="rounds"><option>3</option><option selected>5</option><option>10</option><option>20</option><option>40</option></select></div>
+      <div><label for="nBeans">Fižolčkov v kombinaciji</label>
+        <select id="nBeans"><option value="3">3 (mlajši otroci)</option><option value="4">4</option><option value="5" selected>5</option></select></div>
       <div><label for="memo">Pomnjenje</label>
         <select id="memo"><option value="10" selected>10 s</option><option value="20">20 s</option><option value="40">40 s</option></select></div>
     </div>
@@ -104,7 +106,7 @@ input[type=range]{width:100%;height:36px}
   </div>
   <div id="gGo" class="hidden"><p class="msg">Pojdi v počep</p></div>
   <div id="gPick" class="hidden">
-    <p class="msg" id="gPickMsg">Izberi 5 fižolčkov</p>
+    <p class="msg" id="gPickMsg">Izberi fižolčke</p>
     <div class="beans" id="gBeans"></div>
   </div>
   <div id="gEarly" class="hidden"><p class="msg">Vstal si prezgodaj –<br>nazaj v počep</p><p class="muted" style="text-align:center">Že izbrani fižolčki ostanejo izbrani.</p></div>
@@ -434,7 +436,8 @@ function setStatus(el, shown, extra) { const L = TABLE() ? LABEL_TABLE : LABEL; 
 
 // ---------- igra ----------
 const g = { on: false, phase: 'idle', round: 0, rounds: 5, target: [], order: [], sel: [], early: 0, start: 0, results: [], timer: null };
-function pickCombo() { const idx = [...Array(10).keys()].sort(() => Math.random() - .5); return idx.slice(0, 5).sort((a, b) => a - b); }
+const N = () => g.n || 5;
+function pickCombo() { const idx = [...Array(10).keys()].sort(() => Math.random() - .5); return idx.slice(0, N()).sort((a, b) => a - b); }
 function renderCombo(el, combo) { el.innerHTML = combo.map(i => beanSvg(COLORS[i])).join(''); }
 function phase(p) {
   g.phase = p;
@@ -442,7 +445,7 @@ function phase(p) {
   $('gGo').classList.toggle('hidden', p !== 'go');
   $('gPrep').classList.toggle('hidden', p !== 'prep');
   $('gGo').querySelector('.msg').textContent = TABLE() ? 'Vzemi telefon, pojdi v počep in ga položi na tla' : 'Pojdi v počep';
-  $('gEarly').querySelector('.msg').innerHTML = TABLE() ? 'Telefon je na mizi, a nisi izbral vseh 5 –<br>nesi ga nazaj na tla' : 'Vstal si prezgodaj –<br>nazaj v počep';
+  $('gEarly').querySelector('.msg').innerHTML = TABLE() ? `Telefon je na mizi, a nisi izbral vseh ${N()} –<br>nesi ga nazaj na tla` : 'Vstal si prezgodaj –<br>nazaj v počep';
   $('gPick').classList.toggle('hidden', p !== 'pick');
   $('gEarly').classList.toggle('hidden', p !== 'early');
   $('gStand').classList.toggle('hidden', p !== 'done');
@@ -453,8 +456,8 @@ function phase(p) {
 }
 async function startGame() {
   if (!(await startSensors())) return;
-  g.on = true; g.rounds = +$('rounds').value; g.round = 0; g.results = []; g.target = pickCombo();
-  rec.meta.target = g.target.map(i => NAMES[i]); rec.meta.mode = 'igra'; rec.meta.showStand = $('showStand').checked; rec.meta.showCombo = $('showCombo').checked;
+  g.on = true; g.n = +$('nBeans').value; g.rounds = +$('rounds').value; g.round = 0; g.results = []; g.target = pickCombo();
+  rec.meta.target = g.target.map(i => NAMES[i]); rec.meta.nBeans = g.n; rec.meta.mode = 'igra'; rec.meta.showStand = $('showStand').checked; rec.meta.showCombo = $('showCombo').checked;
   renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target);
   show('s-game'); setStatus($('gStatus'), det.state.shown);
   $('gRound').textContent = `Krog 0/${g.rounds}`;
@@ -485,12 +488,12 @@ function nextRound() {
   updatePickMsg();
   phase(det.state.state === 'V_POCEPU' && !det.standNow ? 'pick' : 'go');
 }
-function updatePickMsg() { $('gPickMsg').textContent = g.sel.length < 5 ? `Izberi ${5 - g.sel.length} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][5 - g.sel.length]}` : (TABLE() ? 'Zdaj telefon nesi nazaj na mizo' : 'Zdaj vstani'); }
+function updatePickMsg() { const k = N() - g.sel.length; $('gPickMsg').textContent = k > 0 ? `Izberi ${k} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][k]}` : (TABLE() ? 'Zdaj telefon nesi nazaj na mizo' : 'Zdaj vstani'); }
 $('gBeans').addEventListener('click', e => {
   const b = e.target.closest('.bean'); if (!b || g.phase !== 'pick') return;
   const i = +b.dataset.i, k = g.sel.indexOf(i);
   if (k >= 0) { g.sel.splice(k, 1); b.classList.remove('sel'); }
-  else if (g.sel.length < 5) { g.sel.push(i); b.classList.add('sel'); }
+  else if (g.sel.length < N()) { g.sel.push(i); b.classList.add('sel'); }
   logEvent('tap', { bean: NAMES[i], selected: g.sel.length });
   updatePickMsg();
 });
@@ -505,7 +508,7 @@ function onDet(e) {
   if (!g.on || e.type !== 'state') return;
   if (e.state === 'V_POCEPU' && (g.phase === 'go' || g.phase === 'early')) phase('pick');
   else if (e.state === 'STOJI' && g.phase === 'pick') {
-    if (g.sel.length < 5) { g.early++; phase('early'); }
+    if (g.sel.length < N()) { g.early++; phase('early'); }
     else {
       const ok = g.sel.slice().sort((a, b) => a - b).join() === g.target.join();
       g.lastOk = ok; $('gVerdict').textContent = ok ? '✓' : '✗'; $('gVerdict').style.color = ok ? 'var(--ok)' : 'var(--bad)';
