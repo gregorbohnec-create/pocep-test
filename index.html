@@ -62,7 +62,7 @@ input[type=range]{width:100%;height:36px}
 <!-- ZAČETEK -->
 <section class="screen on" id="s-start">
   <h1>Neurobeans – test počepa</h1>
-  <p class="muted">Telefon drži v roki. V počepu se pokažejo fižolčki, izberi pravih 5, vstani in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.</p>
+  <p class="muted">V počepu se pokažejo fižolčki (telefon v roki ali položen na tla – izberi spodaj). Izberi pravih 5, vstani in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.</p>
   <div class="card">
     <label for="note">Kdo testira in kako (za posnetek)</label>
     <input type="text" id="note" placeholder="npr. Gregor, desna roka, normalni počepi">
@@ -72,6 +72,8 @@ input[type=range]{width:100%;height:36px}
       <div><label for="memo">Pomnjenje</label>
         <select id="memo"><option value="10" selected>10 s</option><option value="20">20 s</option><option value="40">40 s</option></select></div>
     </div>
+    <label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
+    <select id="where"><option value="hand">drži v roki</option><option value="floor">položi na tla</option></select>
     <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="showCombo"> Kombinacija ves čas vidna</label>
   </div>
   <div id="sensorWarn" class="warn hidden"></div>
@@ -95,7 +97,7 @@ input[type=range]{width:100%;height:36px}
     <p class="msg" id="gPickMsg">Izberi 5 fižolčkov</p>
     <div class="beans" id="gBeans"></div>
   </div>
-  <div id="gEarly" class="hidden"><p class="msg">Vstal si prezgodaj –<br>nazaj v počep</p></div>
+  <div id="gEarly" class="hidden"><p class="msg">Vstal si prezgodaj –<br>nazaj v počep</p><p class="muted" style="text-align:center">Že izbrani fižolčki ostanejo izbrani.</p></div>
   <div id="gStand" class="hidden">
     <div class="verdict" id="gVerdict">✓</div>
     <button class="big" id="btnNext">Naslednji krog</button>
@@ -116,7 +118,7 @@ input[type=range]{width:100%;height:36px}
 <section class="screen" id="s-sensors">
   <div class="status st-STOJI" id="sStatus">STOJI<small>počepov: 0</small></div>
   <div class="fig"><canvas id="chart"></canvas></div>
-  <p class="muted">Črta: ocenjena višina telefona glede na začetni položaj (zadnjih 10 s). Črtkano: prag za počep.</p>
+  <p class="muted">Črta: kratkotrajna sprememba višine telefona (zadnjih 10 s) – spust pokaže dolino, dvig vrh. Črtkano: prag.</p>
   <div class="card">
     <label for="thr">Prag počepa: <span id="thrVal">20</span> cm</label>
     <input type="range" id="thr" min="10" max="45" value="20">
@@ -133,36 +135,31 @@ input[type=range]{width:100%;height:36px}
 </section>
 
 <script>
-// Prepoznavanje počepa iz senzorjev telefona (DeviceMotionEvent).
-// 1) Iz pospeška izločimo navpično komponento (glede na smer gravitacije).
-// 2) Navpični pospešek integriramo v hitrost in višino.
-// 3) Ko telefon miruje (povprečni pospešek ~0 in majhna hitrost), hitrost postavimo
-//    na 0 (ZUPT), da se napaka ne nabira.
-// 4) Višino primerjamo z referenco zadnjega stanja: spust za >= pragDol -> V POČEPU,
-//    dvig za >= pragGor -> STOJI (in +1 počep). Odločamo samo, ko telefon miruje.
+// Prepoznavanje počepa iz senzorjev telefona (DeviceMotionEvent) – različica 2.
+// Na pravem telefonu v roki telefon nikoli popolnoma ne miruje, zato ne iščemo
+// mirovanja, ampak kratkotrajne spremembe višine:
+// 1) navpični pospešek (glede na smer gravitacije),
+// 2) "izgubljajoča" integracija v hitrost in višino (časovna konstanta tau):
+//    počasno lezenje napake izgine, hiter spust/dvig (~0,5–3 s) ostane viden,
+// 3) histereza: višina pade pod -pragDol -> V POČEPU; zraste nad +pragGor -> STOJI.
 (function (root) {
   const G = 9.81;
 
   function createDetector(opts) {
     const o = Object.assign({
-      thresholdDown: 0.2,  // m – spust, ki šteje kot počep
-      thresholdUp: 0.2,    // m – dvig, ki šteje kot vstajanje
-      window: 0.3,          // s – okno za povprečenje pospeška
-      stillAcc: 0.15,        // m/s² – povprečni pospešek, pod katerim telefon "miruje"
-      stillVel: 0.06,       // m/s – največja ocenjena hitrost pri mirovanju
-      forceStill: 1.0,      // s – po toliko sekundah mirnega pospeška ZUPT ne glede na hitrost
-      gravityTau: 1.5,      // s – glajenje gravitacije, ko je telefon ne poda (samo med mirovanjem)
-      showMove: 0.08,       // m – od tu naprej prikažemo SPUSCA/DVIGUJE
-      maxMove: 4.0          // s – gib brez mirovanja, daljši od tega (tresenje, hoja), zavržemo
+      thresholdDown: 0.2,   // m – spust, ki šteje kot počep
+      thresholdUp: 0.2,     // m – dvig, ki šteje kot vstajanje
+      tau: 1.0,             // s – časovna konstanta "pozabljanja" hitrosti in višine
+      minHold: 2.0,         // s – po prehodu stanja toliko časa ne sprejmemo nasprotnega (odboj roke)
+      gravityTau: 1.5,      // s – glajenje gravitacije, ko je telefon ne poda ločeno
+      showMove: 0.08        // m – od tu naprej prikažemo SPUSCA/DVIGUJE
     }, opts || {});
 
     const s = {
       state: 'STOJI', shown: 'STOJI', squats: 0,
-      v: 0, p: 0, ref: 0,            // hitrost, višina, referenčna višina trenutnega stanja
-      still: true, stillAccFor: 0, movingFor: 0,
-      g: null, lastT: null, aV: 0, mean: 0
+      v: 0, p: 0, ref: 0, aV: 0, mean: 0, still: false,
+      g: null, lastT: null, lastChange: -1e9, peak: 0, armed: true
     };
-    const buf = [];                  // {t, x, y, z} linearni pospešek za okno
     const events = [];
     const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
 
@@ -175,57 +172,110 @@ input[type=range]{width:100%;height:36px}
       if (a && ag && isFinite(a.x) && isFinite(ag.x)) {
         gv = { x: ag.x - a.x, y: ag.y - a.y, z: ag.z - a.z }; lin = a;
       } else if (ag && isFinite(ag.x)) {
-        if (!s.g) s.g = { x: ag.x, y: ag.y, z: ag.z };
-        else if (s.still) { const k = Math.min(1, dt / o.gravityTau); s.g = { x: s.g.x + k * (ag.x - s.g.x), y: s.g.y + k * (ag.y - s.g.y), z: s.g.z + k * (ag.z - s.g.z) }; }
+        const k = Math.min(1, dt / o.gravityTau);
+        s.g = s.g ? { x: s.g.x + k * (ag.x - s.g.x), y: s.g.y + k * (ag.y - s.g.y), z: s.g.z + k * (ag.z - s.g.z) } : { x: ag.x, y: ag.y, z: ag.z };
         gv = s.g; lin = { x: ag.x - gv.x, y: ag.y - gv.y, z: ag.z - gv.z };
       } else return s;
 
       const gn = Math.hypot(gv.x, gv.y, gv.z) || G;
       const aV = (lin.x * gv.x + lin.y * gv.y + lin.z * gv.z) / gn; // + = navzgor
-      s.aV = aV;
+      s.aV = aV; s.mean = Math.hypot(lin.x, lin.y, lin.z);
 
-      // povprečje vektorja pospeška v oknu (šum in tapkanje se izpovprečita)
-      buf.push({ t, x: lin.x, y: lin.y, z: lin.z });
-      while (buf.length && buf[0].t < t - o.window) buf.shift();
-      let mx = 0, my = 0, mz = 0; for (const b of buf) { mx += b.x; my += b.y; mz += b.z; }
-      const n = buf.length || 1; const mean = Math.hypot(mx / n, my / n, mz / n); s.mean = mean;
+      const leak = Math.max(0, 1 - dt / o.tau);
+      s.v = s.v * leak + aV * dt;
+      s.p = s.p * leak + s.v * dt;
+      s.still = Math.abs(s.v) < 0.05;
 
-      s.v += aV * dt;
-      s.p += s.v * dt;
-
-      s.stillAccFor = mean < o.stillAcc ? s.stillAccFor + dt : 0;
-      const still = s.stillAccFor >= o.window && (Math.abs(s.v) < o.stillVel || s.stillAccFor >= o.forceStill);
-      if (still) s.v = 0;
-      s.still = still;
-      s.movingFor = still ? 0 : s.movingFor + dt;
-      if (s.movingFor > o.maxMove) s.discard = true;
-      if (still && s.discard) { s.discard = false; s.ref = s.p; emit(t, 'discard', {}); }
-
-      const d = s.p - s.ref;
-      if (still) {
-        if (s.state === 'STOJI') {
-          if (d <= -o.thresholdDown) { s.state = 'V_POCEPU'; s.ref = s.p; emit(t, 'state', { state: s.state, disp: +d.toFixed(3) }); }
-          else if (d > 0) s.ref = s.p;            // stoji višje (npr. dvignil roko) – nova referenca
-        } else {
-          if (d >= o.thresholdUp) { s.state = 'STOJI'; s.ref = s.p; s.squats++; emit(t, 'state', { state: s.state, disp: +d.toFixed(3), squat: s.squats }); }
-          else if (d < 0) s.ref = s.p;            // še nižje v počepu – nova referenca
-        }
+      // prehod sprožimo le ob PREČKANJU praga, ki se zgodi po izteku minHold
+      // (če je višina v trenutku izteka že čez prag, gre za odboj in ga ne štejemo)
+      const canChange = t - s.lastChange >= o.minHold;
+      if (s.state === 'STOJI') {
+        const over = s.p <= -o.thresholdDown;
+        if (!over) s.armed = true;
+        if (over && canChange && s.armed) { s.state = 'V_POCEPU'; s.lastChange = t; s.armed = false; emit(t, 'state', { state: s.state, disp: +s.p.toFixed(3) }); }
+        else if (over && !canChange) s.armed = false;
+      } else {
+        const over = s.p >= o.thresholdUp;
+        if (!over) s.armed = true;
+        if (over && canChange && s.armed) { s.state = 'STOJI'; s.lastChange = t; s.armed = false; s.squats++; emit(t, 'state', { state: s.state, disp: +s.p.toFixed(3), squat: s.squats }); }
+        else if (over && !canChange) s.armed = false;
       }
-      // prikazno stanje med gibom
       let shown = s.state;
-      if (!still) {
-        if (s.state === 'STOJI' && d <= -o.showMove) shown = 'SPUSCA';
-        if (s.state === 'V_POCEPU' && d >= o.showMove) shown = 'DVIGUJE';
-      }
+      if (s.state === 'STOJI' && s.p <= -o.showMove) shown = 'SPUSCA';
+      if (s.state === 'V_POCEPU' && s.p >= o.showMove) shown = 'DVIGUJE';
       if (shown !== s.shown) { s.shown = shown; emit(t, 'shown', { shown }); }
       return s;
     }
-    function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.v = s.p = s.ref = 0; buf.length = 0; events.length = 0; }
-    return { update, reset, state: s, events, opts: o };
+    function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.v = s.p = s.ref = 0; s.lastChange = -1e9; events.length = 0; }
+    function height() { return s.p; }
+    return { update, reset, height, state: s, events, opts: o };
   }
 
   const api = { createDetector };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.SquatDetector = api;
+})(this);
+
+</script>
+<script>
+// Način "telefon na tleh": otrok gre v počep, položi telefon na tla in izbira fižolčke,
+// nato telefon pobere in vstane.
+// - V_POCEPU (na tleh): telefon leži ravno (zaslon gor ali dol) in miruje vsaj `flatTime`.
+// - DVIGUJE: telefon je bil pobran (ni več raven ali se premika).
+// - STOJI: po dvigu je telefon zrasel za >= `riseUp` (izgubljajoča integracija) ali pa je
+//   minilo `standTime` sekund, odkar ga drži v roki (ni raven).
+(function (root) {
+  function createFloorDetector(opts) {
+    const o = Object.assign({
+      flatTilt: 25,      // ° – največji odklon od vodoravne lege, da telefon "leži"
+      flatTime: 0.5,     // s – koliko časa mora ležati pri miru
+      stillAcc: 0.5,    // m/s² – pod tem telefon miruje
+      riseUp: 0.3,       // m – dvig po pobiranju, ki pomeni, da je vstal
+      standTime: 2.0,    // s – sicer: po toliko sekundah v roki štejemo, da stoji
+      tau: 1.0,          // s – izgubljajoča integracija za oceno dviga
+      thresholdDown: 0.2, thresholdUp: 0.2 // za združljivost z grafom
+    }, opts || {});
+    const s = { state: 'STOJI', shown: 'STOJI', squats: 0, aV: 0, mean: 0, still: false, p: 0, v: 0, ref: 0, tilt: 0, flatFor: 0, liftAt: 0, lastT: null };
+    const events = [];
+    const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
+    const set = (t, st, extra) => { if (s.state !== st) { s.state = st; emit(t, 'state', Object.assign({ state: st }, extra || {})); } };
+    const show = (t, sh) => { if (s.shown !== sh) { s.shown = sh; emit(t, 'shown', { shown: sh }); } };
+
+    function update(t, a, ag) {
+      if (s.lastT === null) s.lastT = t;
+      let dt = t - s.lastT; s.lastT = t;
+      if (!(dt > 0) || dt > 0.2) dt = 1 / 60;
+      if (!ag || !isFinite(ag.x)) return s;
+      const lin = a && isFinite(a.x) ? a : { x: 0, y: 0, z: 0 };
+      const gv = { x: ag.x - lin.x, y: ag.y - lin.y, z: ag.z - lin.z };
+      const gn = Math.hypot(gv.x, gv.y, gv.z) || 9.81;
+      s.tilt = Math.acos(Math.min(1, Math.abs(gv.z) / gn)) * 180 / Math.PI; // 0° = leži ravno
+      s.mean = Math.hypot(lin.x, lin.y, lin.z);
+      s.aV = (lin.x * gv.x + lin.y * gv.y + lin.z * gv.z) / gn;
+      const leak = Math.max(0, 1 - dt / o.tau);
+      s.v = s.v * leak + s.aV * dt; s.p = s.p * leak + s.v * dt;
+      const flat = s.tilt <= o.flatTilt;
+      s.still = s.mean < o.stillAcc;
+      s.flatFor = flat && s.still ? s.flatFor + dt : 0;
+
+      if (s.state !== 'V_POCEPU') {
+        if (s.flatFor >= o.flatTime) { set(t, 'V_POCEPU'); show(t, 'V_POCEPU'); s.p = s.v = 0; }
+        else if (s.state === 'STOJI') show(t, flat ? 'SPUSCA' : 'STOJI');
+      }
+      if (s.state === 'V_POCEPU' && !(flat && s.mean < 1.5)) {          // pobran s tal
+        s.state = 'DVIGUJE'; s.liftAt = t; s.p = s.v = 0; emit(t, 'state', { state: 'DVIGUJE' }); show(t, 'DVIGUJE');
+      }
+      if (s.state === 'DVIGUJE') {
+        if (flat && s.still) { s.flatFor += 0; }                         // spet odložen – počaka flatTime
+        const rose = s.p >= o.riseUp, held = !flat && t - s.liftAt >= o.standTime;
+        if (rose || held) { s.squats++; set(t, 'STOJI', { squat: s.squats, by: rose ? 'dvig' : 'čas' }); show(t, 'STOJI'); }
+      }
+      return s;
+    }
+    function reset() { s.state = s.shown = 'STOJI'; s.squats = 0; s.p = s.v = 0; s.flatFor = 0; events.length = 0; }
+    function height() { return s.p; }
+    return { update, reset, height, state: s, events, opts: o };
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createFloorDetector }; else root.FloorDetector = { createFloorDetector };
 })(this);
 
 </script>
@@ -245,7 +295,8 @@ const now = () => performance.now() / 1000;
 function logEvent(type, data) { rec.events.push(Object.assign({ t: +((now() - (t0 || now()))).toFixed(3), type }, data || {})); }
 
 // ---------- detektor ----------
-const det = SquatDetector.createDetector({ onEvent: e => onDet(e) });
+let det = SquatDetector.createDetector({ onEvent: e => onDet(e) });
+function makeDetector() { const w = $('where').value; det = w === 'floor' ? FloorDetector.createFloorDetector({ onEvent: e => onDet(e) }) : SquatDetector.createDetector({ onEvent: e => onDet(e) }); det.state.ref0 = 0; return w; }
 
 function onMotion(ev) {
   const t = ev.timeStamp ? ev.timeStamp / 1000 : now();
@@ -259,12 +310,13 @@ function onMotion(ev) {
   const tt = +(now() - t0).toFixed(4);
   det.update(tt, A, AG);
   const r = x => x == null ? '' : +(+x).toFixed(4);
-  rec.rows.push([tt, r(A && A.x), r(A && A.y), r(A && A.z), r(AG && AG.x), r(AG && AG.y), r(AG && AG.z), r(rr.alpha), r(rr.beta), r(rr.gamma), r(ev.interval), +det.state.p.toFixed(4), det.state.state === 'V_POCEPU' ? 1 : 0]);
-  hist.push([tt, det.state.p - det.state.ref0]);
+  rec.rows.push([tt, r(A && A.x), r(A && A.y), r(A && A.z), r(AG && AG.x), r(AG && AG.y), r(AG && AG.z), r(rr.alpha), r(rr.beta), r(rr.gamma), r(ev.interval), +det.height().toFixed(4), det.state.state === 'V_POCEPU' ? 1 : 0]);
+  hist.push([tt, det.height(), det.state.tilt]);
 }
 
 async function startSensors() {
-  rec.meta = { started: new Date().toISOString(), note: $('note').value, ua: navigator.userAgent, screen: [screen.width, screen.height], config: det.opts, sim: SIM };
+  const where = makeDetector();
+  rec.meta = { started: new Date().toISOString(), where, note: $('note').value, ua: navigator.userAgent, screen: [screen.width, screen.height], config: det.opts, sim: SIM };
   rec.events = []; rec.rows = []; t0 = now();
   if (SIM) { startSim(); return true; }
   if (typeof DeviceMotionEvent === 'undefined') { showWarn('Ta brskalnik ne podpira senzorjev gibanja. Odpri stran na telefonu (Chrome ali Safari).'); return false; }
@@ -298,7 +350,8 @@ function startSim() {
 // ---------- zasloni ----------
 function show(id) { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); window.scrollTo(0, 0); }
 const LABEL = { STOJI: 'STOJI', SPUSCA: 'SPUŠČA SE', V_POCEPU: 'V POČEPU', DVIGUJE: 'DVIGUJE SE' };
-function setStatus(el, shown, extra) { el.className = 'status st-' + shown; el.innerHTML = LABEL[shown] + (extra ? `<small>${extra}</small>` : ''); }
+const LABEL_FLOOR = { STOJI: 'STOJI', SPUSCA: 'POLOŽI NA TLA', V_POCEPU: 'NA TLEH', DVIGUJE: 'POBRAN' };
+function setStatus(el, shown, extra) { const L = $('where').value === 'floor' ? LABEL_FLOOR : LABEL; el.className = 'status st-' + shown; el.innerHTML = L[shown] + (extra ? `<small>${extra}</small>` : ''); }
 
 // ---------- igra ----------
 const g = { on: false, phase: 'idle', round: 0, rounds: 5, target: [], order: [], sel: [], early: 0, start: 0, results: [], timer: null };
@@ -308,6 +361,7 @@ function phase(p) {
   g.phase = p;
   $('gMemo').classList.toggle('hidden', p !== 'memo');
   $('gGo').classList.toggle('hidden', p !== 'go');
+  $('gGo').querySelector('.msg').textContent = $('where').value === 'floor' ? 'Pojdi v počep in položi telefon na tla' : 'Pojdi v počep';
   $('gPick').classList.toggle('hidden', p !== 'pick');
   $('gEarly').classList.toggle('hidden', p !== 'early');
   $('gStand').classList.toggle('hidden', p !== 'done');
@@ -386,9 +440,8 @@ const hist = [];
 $('btnSensors').addEventListener('click', async () => { if (!(await startSensors())) return; rec.meta.mode = 'senzorji'; show('s-sensors'); setStatus($('sStatus'), det.state.shown, 'počepov: 0'); draw(); });
 $('btnGame').addEventListener('click', startGame);
 $('btnBack').addEventListener('click', () => location.reload());
-$('btnReset').addEventListener('click', () => { det.reset(); det.state.ref0 = 0; hist.length = 0; logEvent('reset'); setStatus($('sStatus'), 'STOJI', 'počepov: 0'); });
+$('btnReset').addEventListener('click', () => { det.reset(); hist.length = 0; logEvent('reset'); setStatus($('sStatus'), 'STOJI', 'počepov: 0'); });
 $('thr').addEventListener('input', e => { const v = +e.target.value; $('thrVal').textContent = v; det.opts.thresholdDown = det.opts.thresholdUp = v / 100; logEvent('threshold', { cm: v }); });
-det.state.ref0 = 0;
 
 function draw() {
   const c = $('chart'), W = c.clientWidth, H = c.clientHeight, dpr = devicePixelRatio || 1;
@@ -401,7 +454,7 @@ function draw() {
   x.strokeStyle = '#283946'; x.lineWidth = 3; x.beginPath();
   hist.forEach(([t, h], i) => { const px = W - (tn - t) / 10 * W; i ? x.lineTo(px, Y(h)) : x.moveTo(px, Y(h)); }); x.stroke();
   x.fillStyle = '#5d6b78'; x.font = '12px system-ui'; x.fillText('0 cm', 6, Y(0) - 4); x.fillText('-' + Math.round(det.opts.thresholdDown * 100) + ' cm', 6, Y(-det.opts.thresholdDown) - 4);
-  $('kAv').textContent = det.state.aV.toFixed(2) + ' m/s²';
+  if (det.state.tilt !== undefined) $('kAv').textContent = 'nagib ' + Math.round(det.state.tilt) + '°'; else $('kAv').textContent = det.state.aV.toFixed(2) + ' m/s²';
   $('kStill').textContent = det.state.still ? 'da' : 'ne';
   $('kHz').textContent = rateEma ? Math.round(rateEma) + ' Hz' : '–';
   $('kLin').textContent = hasLinear === null ? '–' : hasLinear ? 'da' : 'ne (manj natančno)';
