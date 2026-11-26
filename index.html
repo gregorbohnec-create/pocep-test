@@ -260,14 +260,15 @@ input[type=range]{width:100%;height:36px}
       lieWindow: 0.4,     // s – okno za mirovanje
       lieMean: 0.15,      // m/s² – povprečni |pospešek| pri ležanju
       lieMax: 0.6,        // m/s² – največji sunek pri ležanju (dotik zaslona je manjši)
-      floorDrop: 0.4,     // m – telefon je na tleh, ko je vsaj toliko pod mizo
-      tableBand: 0.25,    // m – telefon je na mizi, ko je največ toliko pod referenco mize
+      floorDrop: 0.3,     // m – z mize na tla: vsaj toliko nižje od zadnjega položaja na mizi
+      riseUp: 0.3,        // m – s tal na mizo: vsaj toliko višje od zadnjega položaja na tleh
+      settle: 0.15,       // m – manjši premik na isti ravni (prestavi telefon) osveži referenco
       maxCarry: 12,       // s – daljši prenos (hoja okoli) zavržemo
       gravityTau: 0.5,
-      thresholdDown: 0.4, thresholdUp: 0.4 // za graf
+      thresholdDown: 0.3, thresholdUp: 0.3 // za graf
     }, opts || {});
     const s = { state: 'STOJI', shown: 'STOJI', level: 'NEZNANO', squats: 0, h: 0, v: 0, p: 0,
-      lying: false, carrying: false, carryStart: 0, gLie: 9.81, noLinear: false, aV: 0, mean: 0, still: false, tilt: 90, ref: 0, lastT: null, g: null, lastLie: null };
+      lying: false, carrying: false, carryStart: 0, levelH: 0, gLie: 9.81, noLinear: false, aV: 0, mean: 0, still: false, tilt: 90, ref: 0, lastT: null, g: null, lastLie: null };
     const buf = []; const events = [];
     const emit = (t, type, data) => { const e = Object.assign({ t: +t.toFixed(3), type }, data || {}); events.push(e); if (o.onEvent) o.onEvent(e); };
     const setShown = (t, sh) => { if (s.shown !== sh) { s.shown = sh; emit(t, 'shown', { shown: sh }); } };
@@ -318,12 +319,15 @@ input[type=range]{width:100%;height:36px}
           else {
             s.h += disp;
             emit(t, 'carry', { disp: +disp.toFixed(3), dur: +T.toFixed(2), h: +s.h.toFixed(3) });
-            if (s.level === 'NEZNANO') { s.h = 0; s.ref = 0; setLevel(t, 'MIZA', 0); }
-            else if (s.h <= s.ref - o.floorDrop) setLevel(t, 'TLA', +disp.toFixed(3));
-            else if (s.h >= s.ref - o.tableBand) { s.ref = s.h; setLevel(t, 'MIZA', +disp.toFixed(3)); }
-            else setShown(t, s.state);                    // vmesna višina (stol?) – ostane prejšnje
+            // primerjamo s položajem ob zadnji spremembi ravni (ne z absolutno višino) –
+            // pri otroku je prenos manj natančen (±25 cm), razlika tla–miza pa ~80 cm
+            const rel = s.h - s.levelH;
+            if (s.level === 'NEZNANO') { s.h = 0; s.ref = 0; s.levelH = 0; setLevel(t, 'MIZA', 0); }
+            else if (s.level === 'MIZA' && rel <= -o.floorDrop) { s.levelH = s.h; setLevel(t, 'TLA', +disp.toFixed(3)); }
+            else if (s.level === 'TLA' && rel >= o.riseUp) { s.levelH = s.h; s.ref = s.h; setLevel(t, 'MIZA', +disp.toFixed(3)); }
+            else { if (Math.abs(rel) < o.settle) s.levelH = s.h; setShown(t, s.state); } // prestavljen na isti ravni
           }
-        } else if (s.level === 'NEZNANO') { s.h = 0; s.ref = 0; setLevel(t, 'MIZA', 0); }
+        } else if (s.level === 'NEZNANO') { s.h = 0; s.ref = 0; s.levelH = 0; setLevel(t, 'MIZA', 0); }
         s.lying = true;
       } else {
         if (s.lying || !s.carrying) {
@@ -338,8 +342,8 @@ input[type=range]{width:100%;height:36px}
       return s;
     }
     // igra: klik "Naslednji krog" na mizi – telefon je na mizi (referenca)
-    function standNow() { if (s.level === 'MIZA') { s.ref = s.h; } }
-    function reset() { s.state = s.shown = 'STOJI'; s.level = 'NEZNANO'; s.squats = 0; s.h = s.v = s.p = s.ref = 0; s.carrying = false; buf.length = 0; events.length = 0; }
+    function standNow() { if (s.level === 'MIZA') { s.ref = s.h; s.levelH = s.h; } }
+    function reset() { s.state = s.shown = 'STOJI'; s.level = 'NEZNANO'; s.squats = 0; s.h = s.v = s.p = s.ref = s.levelH = 0; s.carrying = false; buf.length = 0; events.length = 0; }
     function height() { return s.h + (s.carrying ? s.p : 0) - s.ref; }
     return { update, reset, standNow, height, state: s, events, opts: o };
   }
