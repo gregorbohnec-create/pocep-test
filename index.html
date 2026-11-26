@@ -43,7 +43,8 @@ button:focus-visible{outline:3px solid var(--squat);outline-offset:2px}
 .bigCombo .combo svg{width:88px;height:118px}.bigCombo .combo{gap:10px;padding:6px 0}
 #gComboWrap,#gMemo .card{background:#fff}
 .bean.sel{border-color:var(--ink);background:#efeaff}
-.beans.b20{gap:6px;padding:8px}.beans.b20 .bean{min-height:min(19vh,150px);padding:4px 0;border-radius:14px}.beans.b20 .bean svg{width:60px;height:90px}
+.beans.b20{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:10px 8px}.beans.b20 .bean{min-height:min(16vh,128px);padding:4px 0;border-radius:14px}.beans.b20 .bean svg{width:50px;height:76px}
+.selCount{text-align:center;font-size:40px;font-weight:900;line-height:1;padding:6px 0 10px;font-variant-numeric:tabular-nums}.selCount.full{color:var(--ok)}
 body.clean #s-game .top,body.clean #gStatus,body.clean #gPickMsg,body.clean #btnStop{display:none!important}body.clean #gPick{margin-top:max(8px,env(safe-area-inset-top))}
 #gComboWrap.bigCombo .combo svg{width:58px;height:80px}#gComboWrap.bigCombo .combo{gap:8px}
 .bean.sel svg{transform:scale(.9)}
@@ -116,6 +117,7 @@ input[type=range]{width:100%;height:36px}
   </div>
   <div id="gGo" class="hidden"><p class="msg">Pojdi v počep</p></div>
   <div id="gPick" class="hidden">
+    <div class="selCount" id="gSelCount">0/5</div>
     <p class="msg" id="gPickMsg">Izberi fižolčke</p>
     <div class="beans" id="gBeans"></div>
   </div>
@@ -682,7 +684,7 @@ function nextRound() {
   if (FLASH()) setTimeout(refreshCombo, FLASH() * 1000 + 50);
   phase(det.state.state === 'V_POCEPU' && !det.standNow ? 'pick' : 'go');
 }
-function updatePickMsg() { const k = N() - g.sel.length; $('gPickMsg').textContent = k > 0 ? `Izberi ${k} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][k]}` : (TABLE() ? 'Zdaj telefon nesi nazaj na mizo' : 'Zdaj vstani'); }
+function updatePickMsg() { $('gSelCount').textContent = `${g.sel.length}/${N()}`; $('gSelCount').classList.toggle('full', g.sel.length === N()); const k = N() - g.sel.length; $('gPickMsg').textContent = k > 0 ? `Izberi ${k} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][k]}` : (TABLE() ? 'Zdaj telefon nesi nazaj na mizo' : 'Zdaj vstani'); }
 function selColors() { return g.sel.map(k => g.order[k]); }
 function verdict() {
   const ok = selColors().sort((a, b) => a - b).join() === g.target.join(); // ista barva dvakrat = napaka
