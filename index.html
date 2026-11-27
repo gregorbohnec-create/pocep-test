@@ -586,7 +586,8 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
       tol: 0.2,           // dovoljeno odstopanje časa (lastnikova privzeta 0,2)
       fastWeight: 0.6,    // prehiter krog šteje manj kot prepočasen ...
       rebase: 3,          // ... razen: toliko zaporednih hitrih in natančnih krogov = nov ritem (novo izhodišče)
-      wError: 1.0, wDeselect: 0.3, wEarly: 0.5, wImprecise: 0.5, impreciseTol: 0.25,
+      wError: 1.0, wDeselect: 0.3, wEarly: 0.5,
+      wImprecise: 0.25, impreciseTol: 0.35, // plank 27. 11.: dotiki so se slabšali že od 8. kroga, lastnik je popuščanje začutil v 15. – sama natančnost ne sme obarvati rdeče
       repeat: 1.5,        // zanihanje tudi v prejšnjem krogu
       escalate: 1.25,     // zanihanje večje kot v prejšnjem krogu
       recover: 0.5,       // miren krog: B *= 0.5
@@ -1088,6 +1089,13 @@ function finish() {
   if (bs && g.results.length) {
     const fellTxt = bs.fell ? `izgubil(a) ravnotežje v ${bs.fellAt}. krogu` : 'brez padca';
     $('rSum').innerHTML += `<br><b>Hoja po vrvi (preizkus):</b> ${fellTxt}` + (ev.length ? ` · zelenih krogov ${green}/${ev.length}` : '') + (g.felt.length ? ` · »ne gre več dobro« v krogu ${g.felt.join(', ')}` : '') + '<br><span class="muted">Barvna pika = ravnotežje po krogu (prvi 4 krogi postavijo izhodišče). ● = tvoja oznaka.</span>';
+  }
+  // natančnost dotikov: od katerega kroga se drseče povprečje (3 krogi) trajno slabša od izhodišča
+  const offs = g.results.map(r => r.comp && r.comp.natancnost);
+  if (bs && bs.offBase != null) {
+    let from = null;
+    for (let i = 4; i < offs.length - 2; i++) { const w = offs.slice(i, i + 3).filter(x => x != null); if (w.length === 3 && w.reduce((a, b) => a + b, 0) / 3 > bs.offBase + 0.2) { from = i + 1; break; } }
+    if (from) $('rSum').innerHTML += `<br>Natančnost dotikov se je začela slabšati v ${from}. krogu (izhodišče ${Math.round(bs.offBase * 100)} % od sredine fižolčka).`;
   }
   rec.meta.balanceSummary = bs ? { fell: bs.fell, fellAt: bs.fellAt, base: bs.base, felt: g.felt } : null;
   setBal(null); $('balBar').classList.add('hidden');
