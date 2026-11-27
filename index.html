@@ -61,6 +61,18 @@ td,th{padding:6px 4px;border-bottom:1px solid #e6e1fb;text-align:left}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
 .warn{background:#fff3d6;border-radius:14px;padding:12px;font-size:15px}
 .hidden{display:none!important}
+#gDuo{margin:4px 0 10px}#gDuo .turn{font-size:34px;font-weight:900;text-align:center;border-radius:20px;padding:10px 6px;color:#283946}
+#gDuo .score{display:flex;justify-content:center;align-items:center;gap:14px;font-size:40px;font-weight:900;margin-top:8px;font-variant-numeric:tabular-nums}
+#gDuo .score .me{padding:2px 12px;border-radius:16px}#gDuo .score .me.on{outline:4px solid #283946}
+.p0bg{background:#B6E678}.p1bg{background:#FBBC5D}
+body.clean #gDuo{display:none}
+#gJars{display:flex;justify-content:center;gap:22px;margin:2px 0 8px}body.clean #gJars{display:none!important}
+.jar{text-align:center}.jar svg{width:96px;height:132px;display:block;margin:0 auto}body:not(.duo) #gJars .jar svg,.jarBig svg{width:124px;height:172px}.jar .who{font-size:28px;line-height:1}.jar .prog{font-size:12px;letter-spacing:2px;color:#5d6b78;margin-top:2px}
+.jar.on svg{filter:drop-shadow(0 0 6px rgba(40,57,70,.35))}
+@keyframes drop{from{transform:translateY(-150px);opacity:0}70%{opacity:1}to{transform:none;opacity:1}}.jarBean.drop{animation:drop .6s cubic-bezier(.3,.7,.4,1) both}
+.trophy{font-size:96px;text-align:center;line-height:1;margin:4px 0}@keyframes pop{0%{transform:scale(.2) rotate(-20deg)}60%{transform:scale(1.2) rotate(8deg)}100%{transform:scale(1)}}.trophy span{display:inline-block;animation:pop .9s ease-out both}
+body.duo #gStatus,body.duo #btnFelt,body.duo .balInfo,body.duo .balCol{display:none!important}
+.duoRes{text-align:center;font-size:44px;font-weight:900;line-height:1.25;margin:6px 0 10px}.duoRes small{display:block;font-size:22px;font-weight:700}
 #balBar{position:fixed;left:0;right:0;top:0;height:10px;z-index:9;transition:background .6s}#balBar.b-zelena{background:#2e9e4f}#balBar.b-oranžna{background:#FBBC5D}#balBar.b-rdeča{background:#E23E34}
 .dot{display:inline-block;width:12px;height:12px;border-radius:6px;vertical-align:middle}.dot.zelena{background:#2e9e4f}.dot.oranžna{background:#FBBC5D}.dot.rdeča{background:#E23E34}.dot.none{background:#d5d0ea}
 .exImg{display:block;width:100%;max-height:230px;object-fit:contain;margin:4px 0 12px;border-radius:14px;background:#fff}
@@ -121,12 +133,14 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
         <select id="memo"><option value="10" selected>10 s</option><option value="20">20 s</option><option value="40">40 s</option></select></div>
     </div>
     <label for="flash" style="margin-top:12px">Prikaz kombinacije</label>
-    <select id="flash"><option value="stand" class="onlySquat">ves čas, ko je telefon na mizi</option><option value="1">1 s na začetku kroga</option><option value="2">2 s na začetku kroga</option><option value="3">3 s na začetku kroga</option><option value="4">4 s na začetku kroga</option><option value="5">5 s na začetku kroga</option><option value="m4" selected>4 s ali do začetka premika</option></select>
+    <select id="flash"><option value="stand" class="onlySquat">ves čas, ko je telefon na mizi</option><option value="1">1 s na začetku kroga</option><option value="2">2 s na začetku kroga</option><option value="3">3 s na začetku kroga</option><option value="4">4 s na začetku kroga</option><option value="5">5 s na začetku kroga</option><option value="m4" selected>4 s ali do začetka premika</option><option value="m99">dokler telefona ne dvigneš</option></select>
+    <label style="margin-top:12px;font-weight:700"><input type="checkbox" id="jarOn" checked> 🫙 Kozarec s fižolčki in pokal (za otroke)</label>
     <label for="balShow" style="margin-top:12px">Ravnotežje med vadbo (hoja po vrvi)</label>
     <select id="balShow"><option value="color" selected>barva na vrhu zaslona</option><option value="hidden">skrito (samo v rezultatu)</option></select>
     <label for="pool" style="margin-top:12px">Fižolčki za izbiro</label>
     <select id="pool"><option value="20" selected>20 (vsaka barva dvakrat), vsak krog premešani</option><option value="10">10 na stalnem mestu</option></select>
     <label class="onlySquat" style="margin-top:8px;font-weight:600"><input type="checkbox" id="newEach"> Nova kombinacija vsak krog</label>
+    <label class="onlySquat duoOpt" style="margin-top:10px;font-weight:700;font-size:18px"><input type="checkbox" id="duo"> 🐰 🐻 Dva igralca – izmenično, tekma</label>
     <div class="onlySquat"><label for="where" style="margin-top:12px">Telefon med izbiranjem</label>
     <select id="where"><option value="table" selected>položi na tla, nato nazaj na mizo (priporočeno)</option><option value="hand">drži v roki</option></select>
     <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="showCombo"> Kombinacija vidna tudi v počepu</label></div>
@@ -144,6 +158,8 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
 <section class="screen" id="s-game">
   <div class="top"><span id="gRound">Krog 1/5</span><span id="gTime">0,0 s</span></div>
   <div class="status st-STOJI" id="gStatus">STOJI</div>
+  <div id="gJars" class="hidden"></div>
+  <div id="gDuo" class="hidden"><div class="turn p0bg" id="gTurn">🐰 na vrsti</div><div class="score"><span class="me p0bg" id="gS0">🐰 0</span>:<span class="me p1bg" id="gS1">0 🐻</span></div></div>
   <div id="gComboWrap" class="card hidden"><p class="muted" style="text-align:center;margin-bottom:6px">Prava kombinacija</p><div class="combo" id="gCombo"></div></div>
   <div id="gMemo" class="hidden">
     <p class="msg" id="gMemoMsg">Zapomni si kombinacijo</p>
@@ -210,7 +226,8 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
 <!-- REZULTAT -->
 <section class="screen" id="s-result">
   <h1>Rezultat</h1>
-  <div class="card"><table><thead><tr><th>Krog</th><th class="n">Čas</th><th>Kombinacija</th><th class="n" id="rCol">Prezgodaj</th><th class="n">Ravn.</th></tr></thead><tbody id="rBody"></tbody></table></div>
+  <div id="rKid"></div>
+  <div class="card"><table><thead><tr><th>Krog</th><th class="n">Čas</th><th>Kombinacija</th><th class="n" id="rCol">Prezgodaj</th><th class="n balCol">Ravn.</th></tr></thead><tbody id="rBody"></tbody></table></div>
   <p id="rSum" class="muted"></p>
   <button class="big" id="btnSave1">Shrani posnetek</button>
   <button class="sec" id="btnAgain">Nov test</button>
@@ -891,6 +908,8 @@ const INTRO_TXT = {
 const SIDE = () => g.round % 2 ? 'levo' : 'desno';
 const SPEECH = () => $('exercise').value === 'speech';
 const TABLE = () => !PLANK() && !SPEECH() && $('where').value === 'table';
+const EMO = ['🐰', '🐻'];
+const DUO = () => !PLANK() && !SPEECH() && $('duo').checked;
 const FLASH = () => $('flash').value === 'stand' ? 0 : +$('flash').value.replace('m', '');
 const HIDE_ON_MOVE = () => $('flash').value[0] === 'm';
 const POOL = () => +$('pool').value;
@@ -913,6 +932,7 @@ function syncSettings() {
     ? 'Plank: telefon leži na tleh ob eni roki. Pokaže se kombinacija – zapomni si jo; skrije se po nastavljenem času ali takoj, ko začneš premikati telefon. Z isto roko prestavi telefon k drugi roki, prenesi težo in z drugo roko izberi prave fižolčke. Klikni »Naslednji krog« in telefon prestavi nazaj. Tako levo–desno, dokler zdržiš. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.'
     : 'Telefon leži na mizi s pravo kombinacijo. Vzemi ga, pojdi v počep in ga položi na tla – pokažejo se fižolčki. Izberi prave (3–5, nastaviš spodaj), telefon položi nazaj na mizo in pritisni »Naslednji krog«. Stran sproti snema podatke senzorjev – na koncu jih shrani in pošlji Claudu.';
 }
+$('duo').addEventListener('change', () => { if ($('duo').checked) { $('where').value = 'table'; $('nBeans').value = '3'; $('rounds').value = '10'; $('flash').value = 'm99'; $('newEach').checked = true; $('pool').value = '10'; } });
 $('exercise').addEventListener('change', syncSettings); $('konjMove').addEventListener('change', syncSettings); syncSettings();
 
 function onMotion(ev) {
@@ -1003,6 +1023,8 @@ function comboVisible(p) {
 function refreshCombo() { $('gComboWrap').classList.toggle('hidden', !comboVisible(g.phase)); }
 function phase(p) {
   g.phase = p;
+  duoUI();
+  if (p !== 'done') jarUI(0);
   if (p === 'pick' && g.cur && !g.cur.tPick) g.cur.tPick = now();
   const pl = PLANK();
   $('gMemo').classList.toggle('hidden', !(p === 'memo' || p === 'show'));
@@ -1027,9 +1049,10 @@ function phase(p) {
 }
 async function startGame() {
   if (!(await startSensors())) return;
-  g.on = true; g.recordedRound = 0; g.bal = Balance.createBalance(); g.felt = []; g.n = +$('nBeans').value; g.rounds = +$('rounds').value; g.round = 0; g.results = []; g.target = pickCombo();
+  g.on = true; g.recordedRound = 0; g.score = [0, 0]; g.turn = 0; g.jar = [[], []].slice(0, DUO() ? 2 : 1); g.jarsFull = [0, 0];
+  g.bal = Balance.createBalance(); g.felt = []; g.n = +$('nBeans').value; g.rounds = +$('rounds').value; if (DUO() && g.rounds < 998 && g.rounds % 2) g.rounds++; /* oba enako krogov */ g.round = 0; g.results = []; g.target = pickCombo();
   setBal(null);
-  Object.assign(rec.meta, { balance: g.bal.opts, balShow: $('balShow').value, target: g.target.map(i => NAMES[i]), nBeans: g.n, mode: 'igra', flash: $('flash').value, pool: POOL(), newEach: PLANK() || $('newEach').checked, showCombo: $('showCombo').checked });
+  Object.assign(rec.meta, { duo: DUO(), balance: g.bal.opts, balShow: $('balShow').value, target: g.target.map(i => NAMES[i]), nBeans: g.n, mode: 'igra', flash: $('flash').value, pool: POOL(), newEach: PLANK() || $('newEach').checked, showCombo: $('showCombo').checked });
   renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target);
   show('s-game'); setStatus($('gStatus'), det.state.shown);
   $('gRound').textContent = ENDLESS() ? 'Krog 0' : `Krog 0/${g.rounds}`;
@@ -1042,19 +1065,20 @@ function startMemo() {
   g.timer = setInterval(() => { left--; $('gCount').textContent = left; if (left <= 0) { clearInterval(g.timer); nextRound(); } }, 1000);
 }
 $('btnBegin').addEventListener('click', () => {
+  if (DUO()) tones([[523, 0.12, 0]]); // odklene zvok (iOS)
   // telefon mora ležati pri miru (miza oz. tla pri planku)
   det.reset(); logEvent('begin');
   $('gPrepWait').textContent = PLANK() ? 'Pusti telefon ležati …' : 'Pusti telefon ležati na mizi …';
   const wait = setInterval(() => {
     const ready = PLANK() ? det.state.level === 'LEZI' && det.state.still : det.state.level === 'MIZA' && det.state.still;
-    if (ready) { clearInterval(wait); PLANK() ? nextRound() : startMemo(); }
+    if (ready) { clearInterval(wait); PLANK() || DUO() ? nextRound() : startMemo(); }
     else if (!det.state.still) $('gPrepWait').textContent = 'Telefon naj leži pri miru …';
   }, 200);
 });
 setInterval(() => { if (g.on && g.round > 0 && g.phase !== 'done') $('gTime').textContent = (now() - g.start).toFixed(1).replace('.', ',') + ' s'; }, 100);
 function nextRound() {
   if (g.round >= g.rounds) return finish();
-  g.round++; g.sel = []; g.early = 0; g.start = now(); g.moved = false; g.lastMove = null;
+  g.round++; g.turn = (g.round - 1) % 2; g.sel = []; g.early = 0; g.start = now(); g.moved = false; g.lastMove = null;
   g.cur = { taps: [], offsets: [], deselects: 0, carries: [] }; $('btnFelt').textContent = 'Zdaj ne gre več dobro';
   if (PLANK() || ($('newEach').checked && g.round > 1)) { g.target = pickCombo(); renderCombo($('gMemoCombo'), g.target); renderCombo($('gCombo'), g.target); logEvent('target', { target: g.target.map(i => NAMES[i]) }); }
   // 10: stalni vrstni red kot v aplikaciji (4 + 4 + 2); 20: vsaka barva dvakrat, vsak krog premešano
@@ -1070,20 +1094,77 @@ function nextRound() {
     g.timer = setTimeout(() => { if (g.phase === 'show') phase(g.moved || STILL() ? 'pick' : 'move'); }, FLASH() * 1000);
     return;
   }
-  g.flashUntil = FLASH() && g.round > 1 ? now() + FLASH() : 0; // 1. krog pride takoj po pomnjenju
+  g.flashUntil = FLASH() && (g.round > 1 || DUO()) ? now() + FLASH() : 0; // 1. krog pride takoj po pomnjenju (razen pri dveh igralcih)
   if (FLASH()) setTimeout(refreshCombo, FLASH() * 1000 + 50);
   phase(det.state.state === 'V_POCEPU' && !det.standNow ? 'pick' : 'go');
 }
 function updatePickMsg() { $('gSelCount').textContent = `${g.sel.length}/${N()}`; $('gSelCount').classList.toggle('full', g.sel.length === N()); const k = N() - g.sel.length; $('gPickMsg').textContent = k > 0 ? `Izberi ${k} ${['fižolčkov','fižolček','fižolčka','fižolčke','fižolčke','fižolčkov'][k]}` : (TABLE() ? 'Zdaj telefon nesi nazaj na mizo' : 'Zdaj vstani'); }
 function selColors() { return g.sel.map(k => g.order[k]); }
+// ---------- kozarec s fižolčki (cilj za otroke) ----------
+const JAR_ON = () => $('jarOn').checked && !SPEECH();
+function jarCap() { const per = g.rounds >= 998 ? 10 : Math.ceil(g.rounds / (DUO() ? 2 : 1)); return per * N(); }
+function jarSvg(beans, cap, nNew) {
+  const cols = cap <= 12 ? 3 : cap <= 30 ? 4 : cap <= 56 ? 5 : 6, rows = Math.ceil(cap / cols);
+  const cw = 76 / cols, ch = 108 / rows, up = ch >= cw * 0.9; // pokončni fižolčki, kadar so celice višje
+  const k = up ? Math.min(cw * 1.05 / 145, ch * 1.02 / 248) : Math.min(cw * 1.02 / 248, ch * 1.05 / 145);
+  let out = '';
+  beans.forEach((c, i) => {
+    const r = Math.floor(i / cols), col = i % cols, cx = 12 + cw * (col + 0.5) + (r % 2 ? cw * 0.12 : -cw * 0.12), cy = 132 - ch * (r + 0.5);
+    const rot = (up ? 0 : 90) + ((i * 37) % 24 - 12), isNew = i >= beans.length - nNew;
+    out += `<g class="jarBean${isNew ? ' drop' : ''}" style="animation-delay:${isNew ? (i - (beans.length - nNew)) * 0.12 : 0}s"><g transform="translate(${cx.toFixed(1)} ${cy.toFixed(1)}) rotate(${rot}) scale(${k.toFixed(4)}) translate(-172 -136)"><path d="${BEAN}" fill="${COLORS[c]}" stroke="#9aa4ad" stroke-width="10"/></g></g>`;
+  });
+  return `<svg viewBox="0 0 100 140" aria-hidden="true"><path d="M22 8h56v8H22z" fill="#C7D8DF" stroke="#283946" stroke-width="2.5"/><path d="M14 16h72q6 0 6 6v108q0 8-8 8H16q-8 0-8-8V22q0-6 6-6z" fill="rgba(255,255,255,.75)" stroke="#283946" stroke-width="3"/>${out}<path d="M18 26v96" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".8"/></svg>`;
+}
+function jarUI(nNew) {
+  const on = JAR_ON() && g.on && g.jar;
+  $('gJars').classList.toggle('hidden', !on || g.phase === 'prep' || g.phase === 'idle' || g.phase === 'pick');
+  if (!on) return;
+  const cap = jarCap(), per = g.rounds >= 998 ? null : Math.ceil(g.rounds / (DUO() ? 2 : 1));
+  $('gJars').innerHTML = g.jar.map((b, p) => {
+    const done = g.results.filter(r => !DUO() || r.player === EMO[p]).length + (g.phase === 'done' && g.recordedRound !== g.round && (!DUO() || g.turn === p) ? 1 : 0);
+    const prog = per ? '●'.repeat(Math.min(done, per)) + '○'.repeat(Math.max(0, per - done)) : (g.jarsFull[p] ? '🫙×' + g.jarsFull[p] : '');
+    return `<div class="jar${DUO() && g.turn === p ? ' on' : ''}">${jarSvg(b, cap, (nNew && (!DUO() || g.turn === p)) ? nNew : 0)}${DUO() ? `<div class="who">${EMO[p]}</div>` : ''}<div class="prog">${prog}</div></div>`;
+  }).join('');
+  if (DUO()) $('gDuo').querySelector('.score').classList.add('hidden');
+}
+function jarAdd(colors) { // pravilno izbrani fižolčki padejo v kozarec
+  const p = DUO() ? g.turn : 0, cap = jarCap();
+  if (g.jar[p].length + colors.length > cap && g.rounds >= 998) { g.jarsFull[p]++; g.jar[p] = []; }
+  g.jar[p] = g.jar[p].concat(colors).slice(0, cap);
+}
+function duoUI() {
+  const on = DUO() && g.on;
+  document.body.classList.toggle('duo', DUO());
+  $('gDuo').classList.toggle('hidden', !on || g.phase === 'prep' || g.phase === 'idle');
+  if (!on) return;
+  $('gTurn').textContent = EMO[g.turn] + ' na vrsti';
+  $('gTurn').className = 'turn p' + g.turn + 'bg';
+  $('gS0').textContent = '🐰 ' + g.score[0]; $('gS1').textContent = g.score[1] + ' 🐻';
+  $('gS0').classList.toggle('on', g.turn === 0); $('gS1').classList.toggle('on', g.turn === 1);
+  $('gComboWrap').querySelector('p').textContent = 'Zapomni si kombinacijo';
+}
+function tones(list) { // vesel / mehak zvok (otroška tekma)
+  try { const ac = sp.ac || (sp.ac = new (window.AudioContext || window.webkitAudioContext)()); ac.resume();
+    list.forEach(([f, d, at]) => { const o = ac.createOscillator(), gn = ac.createGain(), t = ac.currentTime + at; o.type = 'triangle'; o.frequency.value = f;
+      gn.gain.setValueAtTime(0, t); gn.gain.linearRampToValueAtTime(0.3, t + 0.02); gn.gain.exponentialRampToValueAtTime(0.001, t + d); o.connect(gn).connect(ac.destination); o.start(t); o.stop(t + d + 0.05); });
+  } catch (e) {}
+}
 function verdict() {
   if (g.cur) g.cur.tVerdict = now();
   const ok = selColors().sort((a, b) => a - b).join() === g.target.join(); // ista barva dvakrat = napaka
   g.lastOk = ok; $('gVerdict').textContent = ok ? '✓' : '✗'; $('gVerdict').style.color = ok ? 'var(--ok)' : 'var(--bad)';
   renderCombo($('gRightCombo'), g.target);
   $('btnNext').textContent = g.round >= g.rounds ? 'Končaj' : 'Naslednji krog';
+  if (JAR_ON()) { if (ok) jarAdd(g.target.slice()); g.jarNew = ok ? g.target.length : 0; if (!DUO()) tones(ok ? [[660, 0.12, 0], [990, 0.2, 0.1]] : [[330, 0.3, 0]]); }
+  if (DUO()) {
+    if (ok) g.score[g.turn]++;
+    $('gVerdict').textContent = ok ? '✓ ' + EMO[g.turn] + ' +1' : '✗';
+    $('btnNext').textContent = g.round >= g.rounds ? '🏆 Konec' : 'Na vrsti: ' + EMO[1 - g.turn];
+    tones(ok ? [[660, 0.15, 0], [880, 0.15, 0.12], [1320, 0.3, 0.24]] : [[330, 0.35, 0]]);
+  }
   if (navigator.vibrate) navigator.vibrate(ok ? 40 : [80, 60, 80]);
   phase('done');
+  jarUI(g.jarNew || 0);
 }
 $('gBeans').addEventListener('click', e => {
   const b = e.target.closest('.bean'); if (!b || g.phase !== 'pick') return;
@@ -1139,7 +1220,7 @@ function onDet(e) {
   }
 }
 function setBal(color) {
-  const show = g.on && $('balShow').value === 'color';
+  const show = g.on && $('balShow').value === 'color' && !DUO();
   $('balBar').classList.toggle('hidden', !show);
   $('balBar').className = (show ? '' : 'hidden ') + 'b-' + (color || 'zelena');
 }
@@ -1154,6 +1235,7 @@ function recordRound() {
     ocena: rel(c.tVerdict), prenosi: c.carries, popravki: c.deselects, natancnost: c.offsets.length ? +(c.offsets.reduce((a, b) => a + b, 0) / c.offsets.length).toFixed(2) : null };
   r.deselects = c.deselects;
   r.felt = g.felt.includes(g.round);
+  if (DUO()) r.player = EMO[g.turn];
   const b = g.bal.update({ time: r.time, ok: r.ok, deselects: c.deselects, early: r.early, offset: r.comp.natancnost });
   r.bal = { d: b.d, B: b.B, color: b.evaluated ? b.color : null, parts: b.parts, base: b.base, rebased: !!b.rebased };
   setBal(b.evaluated ? b.color : null);
@@ -1168,18 +1250,19 @@ $('btnNext').addEventListener('click', () => {
   nextRound();
 });
 function finish() {
+  $('rKid').innerHTML = '';
   if (g.on && g.phase === 'done') recordRound(); // ocenjen krog šteje tudi brez »Naslednji krog«
   g.on = false; clearInterval(g.timer); clearTimeout(g.timer); phase('idle');
   rec.meta.results = g.results;
   const pl = PLANK();
   $('rCol').textContent = EX() === 'plank' ? 'Premik' : 'Prezgodaj';
-  $('rBody').innerHTML = g.results.map(r => `<tr><td>${r.round}</td><td class="n">${r.time.toFixed(1).replace('.', ',')} s</td><td>${r.ok ? '✓ pravilna' : '✗ napačna'}</td><td class="n">${EX() === 'plank' ? (r.moveCm != null ? r.moveCm + ' cm' : '–') : r.early}</td><td class="n"><span class="dot ${r.bal && r.bal.color || 'none'}"></span>${r.felt ? ' ●' : ''}</td></tr>`).join('');
+  $('rBody').innerHTML = g.results.map(r => `<tr><td>${r.player ? r.player + ' ' : ''}${r.round}</td><td class="n">${r.time.toFixed(1).replace('.', ',')} s</td><td>${r.ok ? '✓ pravilna' : '✗ napačna'}</td><td class="n">${EX() === 'plank' ? (r.moveCm != null ? r.moveCm + ' cm' : '–') : r.early}</td><td class="n balCol"><span class="dot ${r.bal && r.bal.color || 'none'}"></span>${r.felt ? ' ●' : ''}</td></tr>`).join('');
   const ok = g.results.filter(r => r.ok).length, tot = g.results.reduce((s, r) => s + r.time, 0);
   $('rSum').textContent = g.results.length ? `Pravilnih: ${ok}/${g.results.length} · skupni čas ${tot.toFixed(1).replace('.', ',')} s · ` + (pl ? `zaznanih prestavitev: ${det.state.moves}` : `zaznanih počepov: ${det.state.squats}`) : 'Ni odigranih krogov.';
   const bs = g.bal ? g.bal.state : null, ev = g.results.filter(r => r.bal && r.bal.color), green = ev.filter(r => r.bal.color === 'zelena').length;
   if (bs && g.results.length) {
     const fellTxt = bs.fell ? `izgubil(a) ravnotežje v ${bs.fellAt}. krogu` : 'brez padca';
-    $('rSum').innerHTML += `<br><b>Hoja po vrvi (preizkus):</b> ${fellTxt}` + (ev.length ? ` · zelenih krogov ${green}/${ev.length}` : '') + (g.felt.length ? ` · »ne gre več dobro« v krogu ${g.felt.join(', ')}` : '') + '<br><span class="muted">Barvna pika = ravnotežje po krogu (prvi 4 krogi postavijo izhodišče). ● = tvoja oznaka.</span>';
+    $('rSum').innerHTML += `<span class="balInfo"><br><b>Hoja po vrvi (preizkus):</b> ${fellTxt}` + (ev.length ? ` · zelenih krogov ${green}/${ev.length}` : '') + (g.felt.length ? ` · »ne gre več dobro« v krogu ${g.felt.join(', ')}` : '') + '<br><span class="muted">Barvna pika = ravnotežje po krogu (prvi 4 krogi postavijo izhodišče). ● = tvoja oznaka.</span></span>';
   }
   // natančnost dotikov: od katerega kroga se drseče povprečje (3 krogi) trajno slabša od izhodišča
   const offs = g.results.map(r => r.comp && r.comp.natancnost);
@@ -1187,6 +1270,18 @@ function finish() {
     let from = null;
     for (let i = 4; i < offs.length - 2; i++) { const w = offs.slice(i, i + 3).filter(x => x != null); if (w.length === 3 && w.reduce((a, b) => a + b, 0) / 3 > bs.offBase + 0.2) { from = i + 1; break; } }
     if (from) $('rSum').innerHTML += `<br>Natančnost dotikov se je začela slabšati v ${from}. krogu (izhodišče ${Math.round(bs.offBase * 100)} % od sredine fižolčka).`;
+  }
+  if (JAR_ON() && g.results.length && g.jar) {
+    const cap = jarCap(), tot = g.jar.reduce((a, b) => a + b.length, 0) + g.jarsFull.reduce((a, b) => a + b, 0) * cap;
+    const jars = g.jar.map((b, p) => `<div class="jar">${jarSvg(b, cap, 0)}${DUO() ? `<div class="who">${EMO[p]}</div>` : ''}</div>`).join('');
+    $('rKid').innerHTML = `${DUO() ? '' : '<div class="trophy"><span>🏆</span></div>'}<div style="display:flex;justify-content:center;gap:22px">${jars}</div><div class="duoRes" style="font-size:24px">${tot} fižolčkov v ${DUO() ? "kozarcih" : "kozarcu"}!</div>` + $('rKid').innerHTML;
+    if (!DUO()) tones([[523, 0.15, 0], [659, 0.15, 0.15], [784, 0.15, 0.3], [1047, 0.4, 0.45]]);
+  }
+  if (DUO() && g.results.length) {
+    const [a, b] = g.score, win = a === b ? '🐰 🐻' : a > b ? '🐰' : '🐻';
+    $('rKid').innerHTML = `<div class="duoRes">🏆 ${win}<small>${a === b ? 'Izenačeno – zmagala sta oba!' : 'Zmagovalec!'}</small>🐰 ${a} : ${b} 🐻</div>` + $('rKid').innerHTML;
+    rec.meta.duoScore = { zajcek: a, medvedek: b };
+    tones([[523, 0.15, 0], [659, 0.15, 0.15], [784, 0.15, 0.3], [1047, 0.4, 0.45]]);
   }
   rec.meta.balanceSummary = bs ? { fell: bs.fell, fellAt: bs.fellAt, base: bs.base, felt: g.felt } : null;
   setBal(null); $('balBar').classList.add('hidden');
