@@ -80,8 +80,8 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
 .pText h2{font-size:1.15em;margin:0 0 .6em;font-weight:900}
 .pBand{position:absolute;left:0;right:0;top:calc(34vh - .3em);height:3.4em;background:rgba(163,148,231,.18);border-top:2px solid rgba(163,148,231,.5);border-bottom:2px solid rgba(163,148,231,.5);pointer-events:none}
 .pCtl{position:absolute;left:0;right:0;bottom:0;height:86px;display:flex;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fffdf6;border-top:1px solid #eee}
-.pCtl button{flex:1;margin:0;font-size:24px;padding:0}.pCtl #pDone{flex:2;font-size:18px}
-.pInfo{position:absolute;top:8px;right:12px;font-size:14px;color:#8a94a0;font-weight:600}
+.pCtl button{flex:1.4;margin:0;font-size:15px;font-weight:700;padding:0}.pCtl #pPause{flex:.8;font-size:22px}.pCtl #pDone{flex:1}
+.pInfo{position:absolute;bottom:94px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#fffdf6;border:1px solid #e6e1fb;border-radius:14px;padding:3px 12px;font-size:15px;color:#5d6b78;font-weight:700;transition:color .2s}.pInfo.flash{color:#0571D3}
 .feel{display:flex;gap:6px}.feel button{flex:1;margin:0;padding:14px 0;font-size:22px}.feel button.on{background:var(--ink);color:#fff}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -104,7 +104,7 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
       <label for="spText">Besedilo</label>
       <select id="spText"><option value="-1" selected>naključno</option></select>
       <label for="spWpm" style="margin-top:12px">Hitrost pomikanja besedila</label>
-      <select id="spWpm"><option value="50">50 besed/min</option><option value="60">60 besed/min</option><option value="70" selected>70 besed/min</option><option value="80">80 besed/min</option><option value="90">90 besed/min</option><option value="100">100 besed/min</option><option value="110">110 besed/min</option><option value="120">120 besed/min</option><option value="140">140 besed/min (hitro)</option></select>
+      <select id="spWpm"><option value="50">50 besed/min</option><option value="60">60 besed/min</option><option value="70">70 besed/min</option><option value="80">80 besed/min</option><option value="90">90 besed/min</option><option value="100" selected>100 besed/min</option><option value="110">110 besed/min</option><option value="120">120 besed/min</option><option value="140">140 besed/min (hitro)</option></select>
       <label for="spSec" style="margin-top:12px">Skiping</label>
       <select id="spSec"><option value="20">20 s</option><option value="30">30 s</option><option value="40" selected>40 s</option><option value="60">60 s</option></select>
       <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="spVoice" checked> Spodbude na glas (sicer piski)</label>
@@ -190,7 +190,7 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
     <div class="prompter" id="prompter"><div class="pText" id="pText"></div></div>
     <div class="pBand"></div>
     <div class="pInfo" id="pInfo"></div>
-    <div class="pCtl"><button class="sec" id="pSlow" aria-label="Počasneje">−</button><button class="sec" id="pPause" aria-label="Premor">❚❚</button><button class="sec" id="pFast" aria-label="Hitreje">+</button><button id="pDone">Končal sem</button></div>
+    <div class="pCtl"><button class="sec" id="pSlow">◀ počasneje</button><button class="sec" id="pPause" aria-label="Premor">❚❚</button><button class="sec" id="pFast">hitreje ▶</button><button id="pDone">Konec</button></div>
   </div>
   <div id="spEnd" class="hidden">
     <h1>Konec vaje</h1>
@@ -1233,7 +1233,7 @@ function startReading() {
   cancelAnimationFrame(sp.raf); sp.raf = requestAnimationFrame(scrollStep);
 }
 function textSpan() { const el = $('pText'), cs = getComputedStyle(el); return el.scrollHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); }
-function setSpeed() { sp.pxs = textSpan() / (sp.words / sp.wpm * 60); $('pInfo').textContent = sp.wpm + ' besed/min'; }
+function setSpeed(flash) { sp.pxs = textSpan() / (sp.words / sp.wpm * 60); $('pInfo').textContent = 'hitrost: ' + sp.wpm + ' besed/min'; if (flash) { $('pInfo').classList.add('flash'); clearTimeout(sp.flashT); sp.flashT = setTimeout(() => $('pInfo').classList.remove('flash'), 700); } }
 function scrollStep() {
   const tn = now(), dt = Math.min(0.1, tn - sp.lastFrame); sp.lastFrame = tn;
   if (!sp.paused && tn > sp.startDelay) sp.off += sp.pxs * dt;
@@ -1244,8 +1244,8 @@ function scrollStep() {
 }
 function togglePause() { sp.paused = !sp.paused; if (sp.paused) sp.pauses++; $('pPause').textContent = sp.paused ? '▶' : '❚❚'; logEvent(sp.paused ? 'pause' : 'resume', { off: Math.round(sp.off) }); }
 $('prompter').addEventListener('click', togglePause); $('pPause').addEventListener('click', togglePause);
-$('pSlow').addEventListener('click', () => { sp.wpm = Math.max(50, sp.wpm - 10); setSpeed(); logEvent('wpm', { wpm: sp.wpm }); });
-$('pFast').addEventListener('click', () => { sp.wpm = Math.min(200, sp.wpm + 10); setSpeed(); logEvent('wpm', { wpm: sp.wpm }); });
+$('pSlow').addEventListener('click', () => { sp.wpm = Math.max(50, sp.wpm - 10); setSpeed(true); logEvent('wpm', { wpm: sp.wpm }); });
+$('pFast').addEventListener('click', () => { sp.wpm = Math.min(200, sp.wpm + 10); setSpeed(true); logEvent('wpm', { wpm: sp.wpm }); });
 $('pDone').addEventListener('click', () => finishSpeech('gumb'));
 const mmss = s => Math.floor(s / 60) + ':' + String(Math.round(s % 60)).padStart(2, '0');
 function finishSpeech(why) {
