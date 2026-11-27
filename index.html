@@ -107,6 +107,8 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
       <select id="spWpm"><option value="50">50 besed/min</option><option value="60">60 besed/min</option><option value="70">70 besed/min</option><option value="80">80 besed/min</option><option value="90">90 besed/min</option><option value="100" selected>100 besed/min</option><option value="110">110 besed/min</option><option value="120">120 besed/min</option><option value="140">140 besed/min (hitro)</option></select>
       <label for="spSec" style="margin-top:12px">Skiping</label>
       <select id="spSec"><option value="20">20 s</option><option value="30">30 s</option><option value="40" selected>40 s</option><option value="60">60 s</option></select>
+      <label for="spFollow" style="margin-top:12px">Pomikanje besedila</label>
+      <select id="spFollow"><option value="voice" selected>sledi glasu (mikrofon – samo glasnost, brez snemanja)</option><option value="fixed">stalna hitrost</option></select>
       <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="spVoice" checked> Spodbude na glas (sicer piski)</label>
     </div>
     <div class="onlyGame">
@@ -174,7 +176,8 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
 <section class="screen" id="s-speech">
   <div id="spReady">
     <p class="msg">Telefon trdno drži v roki. Ko klikneš ZAČNI, <span id="spSecTxt">40</span> s delaj visoki skiping – čim višje kolena in čim hitreje.</p>
-    <p class="muted" style="text-align:center">Nato se pokaže besedilo, ki ga bereš na glas. Pomika se samo.</p>
+    <p class="muted" style="text-align:center">Nato se pokaže besedilo, ki ga bereš na glas. Pomika se samo – če je vklopljeno »sledi glasu«, samo medtem ko govoriš.</p>
+    <p class="warn" style="font-size:14px">🔔 Telefon ne sme biti na tiho (na iPhonu stikalo ob strani), sicer spodbud ne slišiš.</p>
     <button class="big" id="btnSpGo">Začni</button>
     <p class="muted" id="spVoiceInfo" style="text-align:center"></p>
   </div>
@@ -564,6 +567,94 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
     return { update, reset, height, state: s, events, opts: o };
   }
   if (typeof module !== 'undefined' && module.exports) module.exports = { createPlankDetector }; else root.PlankDetector = { createPlankDetector };
+})(this);
+
+</script>
+<script>
+// Analiza govora iz mikrofona – brez snemanja: iz vsakega okna zvoka (≈ 43 ms) samo
+// glasnost (dB), ali se govori, in osnovni ton (F0). Zvok se nikamor ne shrani ali pošlje.
+// - govor/premor: prag nad sprotnim šumom ozadja (+12 dB vklop, +7 dB izklop, 0,25 s zadrževanja)
+// - premor za dih: tišina ≥ 0,35 s med frazami
+// - ton: avtokorelacija (70–400 Hz), le v govoru
+// Ocene so ZAČASNE – meje bomo nastavili iz posnetkov.
+(function (root) {
+  function pitch(b, sr) {
+    const n = b.length >> 1, x = new Float32Array(n);
+    for (let i = 0; i < n; i++) x[i] = (b[2 * i] + b[2 * i + 1]) / 2;
+    const fs = sr / 2, minL = Math.floor(fs / 400), maxL = Math.min(n - 2, Math.floor(fs / 70));
+    let e0 = 0; for (let i = 0; i < n; i++) e0 += x[i] * x[i];
+    if (e0 < 1e-7) return null;
+    let best = -1, bestL = 0;
+    for (let L = minL; L <= maxL; L++) {
+      let c = 0, e1 = 0; for (let i = 0; i < n - L; i++) { c += x[i] * x[i + L]; e1 += x[i + L] * x[i + L]; }
+      c /= Math.sqrt(e0 * e1) || 1;
+      if (c > best) { best = c; bestL = L; }
+    }
+    if (best < 0.55) return null;
+    // izogni se oktavni napaki: če je pri polovični periodi skoraj enako dobra korelacija, vzemi višji ton
+    return fs / bestL;
+  }
+  const median = a => { const s = a.slice().sort((p, q) => p - q), n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null; };
+  const mean = a => a.length ? a.reduce((p, q) => p + q, 0) / a.length : null;
+  const sd = a => { if (a.length < 2) return null; const m = mean(a); return Math.sqrt(a.reduce((p, q) => p + (q - m) ** 2, 0) / (a.length - 1)); };
+  const clamp01 = x => Math.max(0, Math.min(1, x));
+
+  function createVoiceAnalyzer(opts) {
+    const o = Object.assign({ on: 12, off: 7, hang: 0.25, floorRise: 0.5, breath: 0.35, every: 3 }, opts || {});
+    const st = { floor: null, lastT: null, lastVoice: -1, speaking: false, segStart: null, segs: [], frames: [], tick: 0 };
+    function frame(buf, t, sr) {
+      let ss = 0; for (let i = 0; i < buf.length; i++) ss += buf[i] * buf[i];
+      const db = 20 * Math.log10(Math.sqrt(ss / buf.length) + 1e-9);
+      if (st.floor === null || db < st.floor) st.floor = db; else st.floor += (t - (st.lastT ?? t)) * o.floorRise;
+      st.lastT = t;
+      const voiced = st.speaking ? db > st.floor + o.off : db > st.floor + o.on;
+      if (voiced) st.lastVoice = t;
+      const speakingNow = voiced || (st.lastVoice >= 0 && t - st.lastVoice < o.hang);
+      if (speakingNow && !st.speaking) st.segStart = t;
+      if (!speakingNow && st.speaking && st.segStart != null) st.segs.push([st.segStart, st.lastVoice]);
+      st.speaking = speakingNow;
+      let f0 = null;
+      if (++st.tick % o.every === 0) {
+        if (voiced) f0 = pitch(buf, sr);
+        st.frames.push([+t.toFixed(2), +db.toFixed(1), speakingNow ? 1 : 0, f0 ? Math.round(f0) : null]);
+      }
+      return { db, speaking: speakingNow, voiced, f0 };
+    }
+    function phrases() {
+      const segs = st.segs.slice(); if (st.speaking && st.segStart != null) segs.push([st.segStart, st.lastVoice]);
+      const out = [];
+      for (const s of segs) { const last = out[out.length - 1]; if (last && s[0] - last[1] < o.breath) last[1] = s[1]; else out.push([s[0], s[1]]); }
+      return out.filter(p => p[1] - p[0] > 0.15);
+    }
+    function part(ph, from, to) {
+      const P = ph.filter(p => p[0] >= from && p[0] < to);
+      const dur = P.map(p => p[1] - p[0]);
+      const pauses = []; for (let i = 1; i < ph.length; i++) if (ph[i][0] >= from && ph[i][0] < to) pauses.push(ph[i][0] - ph[i - 1][1]);
+      const F = st.frames.filter(f => f[0] >= from && f[0] < to && f[2]);
+      const f0s = F.map(f => f[3]).filter(x => x);
+      // glasnost po frazah (povprečje fraze) – ali glas med frazami pojenja ali niha; nihanje med zlogi je naravno
+      const dbs = P.map(p => mean(st.frames.filter(f => f[2] && f[0] >= p[0] && f[0] <= p[1]).map(f => f[1]))).filter(x => x != null);
+      // trepetanje tona: relativna razlika med zaporednima ocenama tona
+      const jit = []; for (let i = 1; i < F.length; i++) if (F[i][3] && F[i - 1][3] && F[i][0] - F[i - 1][0] < 0.2) { const r = Math.abs(F[i][3] - F[i - 1][3]) / F[i - 1][3]; if (r < 0.3) jit.push(r); }
+      const speak = dur.reduce((p, q) => p + q, 0), pz = pauses.reduce((p, q) => p + q, 0);
+      return { phrases: P.length, phraseLen: mean(dur), pauseLen: mean(pauses), pausesPerMin: (to - from) > 0 ? pauses.length / ((to - from) / 60) : null,
+        speakRatio: speak + pz > 0 ? speak / (speak + pz) : null, db: mean(dbs), dbSd: sd(dbs), f0: median(f0s), f0Sd: sd(f0s), jitter: median(jit) };
+    }
+    function stats(t0, t1) {
+      const ph = phrases(); if (!ph.length) return null;
+      const T = t1 - t0, all = part(ph, t0, t1 + 1), a = part(ph, t0, t0 + T / 3), c = part(ph, t0 + 2 * T / 3, t1 + 1);
+      // začasne ocene 0–100
+      const sc = {
+        tekocnost: all.speakRatio != null ? Math.round(100 * clamp01((all.speakRatio - 0.5) / 0.35)) : null,       // delež govora brez premorov
+        glasnost: all.dbSd != null ? Math.round(100 * clamp01((6 - all.dbSd) / 5)) : null,                          // enakomerna glasnost med frazami
+        ton: all.jitter != null ? Math.round(100 * clamp01((0.10 - all.jitter) / 0.08)) : null                      // miren, ne tresoč ton
+      };
+      const vals = Object.values(sc).filter(x => x != null);
+      return { all, first: a, last: c, scores: sc, score: vals.length ? Math.round(mean(vals)) : null, phrases: ph.length };
+    }
+    return { frame, stats, phrases, state: st, opts: o };
+  }
+  if (typeof module !== 'undefined' && module.exports) module.exports = { createVoiceAnalyzer, pitch }; else root.Voice = { createVoiceAnalyzer };
 })(this);
 
 </script>
@@ -1183,9 +1274,10 @@ async function startSpeech() {
   show('s-speech'); spShow('ready');
 }
 $('spVoice').addEventListener('change', voiceInfo);
-$('btnSpGo').addEventListener('click', () => {
+$('btnSpGo').addEventListener('click', async () => {
   // klik odklene zvok in govor (iOS)
   try { sp.ac = sp.ac || new (window.AudioContext || window.webkitAudioContext)(); sp.ac.resume(); } catch (e) {}
+  if ($('spFollow').value === 'voice' && !mic.on) await micStart();
   if (window.speechSynthesis && $('spVoice').checked && sp.voice) { const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }
   det.reset(); sp.q = sp.qN = sp.cadSum = sp.cadN = sp.rmsMax = 0; sp.said = {}; sp.lastSay = 0; sp.lastLvl = ''; sp.stillSince = null;
   sp.t0 = now(); spShow('skip'); logEvent('begin');
@@ -1229,14 +1321,34 @@ function startReading() {
   sp.words = sp.text.text.split(/\s+/).length; sp.off = 0; sp.paused = false; sp.pauses = 0; sp.ended = false;
   spShow('read'); $('pText').style.transform = 'translateY(0)';
   sp.readT0 = now(); sp.startDelay = sp.readT0 + 1.5; // 1,5 s, da najde prvo vrstico
+  if (mic.on) { mic.va = Voice.createVoiceAnalyzer(); rec.meta.follow = 'voice'; } else rec.meta.follow = 'fixed';
   setSpeed(); sp.lastFrame = now();
   cancelAnimationFrame(sp.raf); sp.raf = requestAnimationFrame(scrollStep);
 }
+// ---------- mikrofon: samo glasnost in ton (brez snemanja) ----------
+const mic = { on: false, an: null, buf: null, stream: null, va: null, sr: 48000 };
+async function micStart() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    const ctx = sp.ac; await ctx.resume();
+    const src = ctx.createMediaStreamSource(stream), an = ctx.createAnalyser(), mute = ctx.createGain();
+    an.fftSize = 2048; mute.gain.value = 0; src.connect(an); an.connect(mute); mute.connect(ctx.destination);
+    Object.assign(mic, { on: true, an, buf: new Float32Array(2048), stream, sr: ctx.sampleRate });
+    logEvent('mic', { ok: true, sr: ctx.sampleRate }); return true;
+  } catch (e) { logEvent('mic', { ok: false, err: e.name }); $('spVoiceInfo').textContent = 'Mikrofon ni dovoljen – besedilo se bo pomikalo s stalno hitrostjo.'; return false; }
+}
+function micStop() { try { mic.stream && mic.stream.getTracks().forEach(t => t.stop()); } catch (e) {} mic.on = false; }
 function textSpan() { const el = $('pText'), cs = getComputedStyle(el); return el.scrollHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom); }
 function setSpeed(flash) { sp.pxs = textSpan() / (sp.words / sp.wpm * 60); $('pInfo').textContent = 'hitrost: ' + sp.wpm + ' besed/min'; if (flash) { $('pInfo').classList.add('flash'); clearTimeout(sp.flashT); sp.flashT = setTimeout(() => $('pInfo').classList.remove('flash'), 700); } }
 function scrollStep() {
   const tn = now(), dt = Math.min(0.1, tn - sp.lastFrame); sp.lastFrame = tn;
-  if (!sp.paused && tn > sp.startDelay) sp.off += sp.pxs * dt;
+  let speaking = true;
+  if (mic.on && mic.va) {   // sledenje glasu: besedilo se premika samo med govorom
+    mic.an.getFloatTimeDomainData(mic.buf);
+    speaking = mic.va.frame(mic.buf, tn - sp.readT0, mic.sr).speaking;
+    $('pInfo').textContent = (speaking ? '🎤 govoriš' : '🎤 čakam …') + ' · ' + sp.wpm + ' besed/min';
+  }
+  if (!sp.paused && speaking && (mic.on || tn > sp.startDelay)) sp.off += sp.pxs * dt;
   const max = textSpan() - 40;
   if (sp.off >= max) { sp.off = max; if (!sp.ended) { sp.ended = true; logEvent('text_end'); setTimeout(() => sp.phase === 'read' && finishSpeech('konec besedila'), 2500); } }
   $('pText').style.transform = `translateY(${-sp.off}px)`;
@@ -1254,14 +1366,27 @@ function finishSpeech(why) {
   const readS = sp.readT0 ? now() - sp.readT0 : 0, r = sp.res || {};
   const readPct = sp.readT0 ? Math.min(100, Math.round(sp.off / Math.max(1, textSpan() - 40) * 100)) : 0;
   rec.meta.results = Object.assign({}, r, { readSec: +readS.toFixed(1), readPct, pauses: sp.pauses, endWpm: sp.wpm, end: why });
+  const vs = mic.va && readS > 5 ? mic.va.stats(0, readS) : null;
+  if (mic.va) { rec.audio = { cols: ['t', 'db', 'govor', 'f0'], rows: mic.va.state.frames }; rec.meta.voiceStats = vs; }
+  micStop();
   logEvent('end', rec.meta.results);
   $('spRes').innerHTML = [
     ['Moč gibanja (kakovost skipinga)', r.power != null ? r.power + ' %' : '–'],
     ['Povprečen tempo', r.cad ? r.cad.toFixed(1).replace('.', ',') + ' korakov/s' : '–'],
     ['Čas branja', readS ? mmss(readS) : '–'], ['Prebrano besedilo', readPct + ' %'],
-    ['Premori', sp.pauses], ['Končna hitrost', sp.wpm + ' besed/min']
-  ].map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('');
+    ['Premori (gumb)', sp.pauses], ['Končna hitrost', sp.wpm + ' besed/min']
+  ].concat(vs ? voiceRows(vs) : []).map(([k, v]) => `<span>${k}</span><b>${v}</b>`).join('');
   spShow('end');
+}
+function voiceRows(v) {
+  const n = (x, d = 1) => x == null ? '–' : (+x).toFixed(d).replace('.', ','), a = v.first, c = v.last;
+  return [
+    ['<b>Govor (preizkus)</b>', v.score != null ? v.score + ' / 100' : '–'],
+    ['· tekočnost', v.scores.tekocnost != null ? v.scores.tekocnost : '–'], ['· enakomerna glasnost', v.scores.glasnost != null ? v.scores.glasnost : '–'], ['· miren ton', v.scores.ton != null ? v.scores.ton : '–'],
+    ['Dolžina fraz (začetek → konec)', `${n(a.phraseLen)} → ${n(c.phraseLen)} s`],
+    ['Premori za dih (začetek → konec)', `${n(a.pauseLen)} → ${n(c.pauseLen)} s`],
+    ['Ton glasu (začetek → konec)', `${n(a.f0, 0)} → ${n(c.f0, 0)} Hz`]
+  ];
 }
 $('spFeel').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; sp.feel = +b.dataset.v; rec.meta.feel = sp.feel; logEvent('feel', { v: sp.feel }); [...$('spFeel').children].forEach(x => x.classList.toggle('on', x === b)); });
 $('btnSpStop').addEventListener('click', () => sp.phase === 'ready' ? location.reload() : finishSpeech('prekinjeno'));
@@ -1330,7 +1455,7 @@ $('btnBack2').addEventListener('click', () => location.reload());
 // ---------- shranjevanje ----------
 async function save() {
   rec.meta.saved = new Date().toISOString(); rec.meta.squats = det.state.squats; rec.meta.rateHz = Math.round(rateEma);
-  const out = { meta: rec.meta, events: rec.events, cols: ['t', 'ax', 'ay', 'az', 'agx', 'agy', 'agz', 'rotA', 'rotB', 'rotG', 'interval', 'p', 'squat'], rows: rec.rows };
+  const out = { meta: rec.meta, events: rec.events, audio: rec.audio || null, cols: ['t', 'ax', 'ay', 'az', 'agx', 'agy', 'agz', 'rotA', 'rotB', 'rotG', 'interval', 'p', 'squat'], rows: rec.rows };
   const name = 'pocep-' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.json';
   const file = new File([JSON.stringify(out)], name, { type: 'application/json' });
   try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; } } catch (e) { if (e.name === 'AbortError') return; }
