@@ -104,7 +104,7 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
       <label for="spText">Besedilo</label>
       <select id="spText"><option value="-1" selected>naključno</option></select>
       <label for="spWpm" style="margin-top:12px">Hitrost pomikanja besedila</label>
-      <select id="spWpm"><option value="80">80 besed/min (zelo počasi)</option><option value="90">90 besed/min</option><option value="100" selected>100 besed/min</option><option value="110">110 besed/min</option><option value="120">120 besed/min</option><option value="140">140 besed/min (hitro)</option></select>
+      <select id="spWpm"><option value="50">50 besed/min</option><option value="60">60 besed/min</option><option value="70" selected>70 besed/min</option><option value="80">80 besed/min</option><option value="90">90 besed/min</option><option value="100">100 besed/min</option><option value="110">110 besed/min</option><option value="120">120 besed/min</option><option value="140">140 besed/min (hitro)</option></select>
       <label for="spSec" style="margin-top:12px">Skiping</label>
       <select id="spSec"><option value="20">20 s</option><option value="30">30 s</option><option value="40" selected>40 s</option><option value="60">60 s</option></select>
       <label style="margin-top:12px;font-weight:600"><input type="checkbox" id="spVoice" checked> Spodbude na glas (sicer piski)</label>
@@ -584,10 +584,10 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
       warmup: 1,          // prvi krog(i) ne štejejo (ogrevanje)
       baseRounds: 3,      // iz toliko krogov se postavi izhodišče (krogi 2–4)
       tol: 0.2,           // dovoljeno odstopanje časa (lastnikova privzeta 0,2)
-      fastWeight: 0.6,    // prehiter krog šteje manj kot prepočasen ...
-      rebase: 3,          // ... razen: toliko zaporednih hitrih in natančnih krogov = nov ritem (novo izhodišče)
+      fastWeight: 1.0,    // prehiter krog šteje enako kot prepočasen (lastnik: nestrpnost skrajša čas) ...
+      rebase: 3,          // ... razen: toliko zaporednih hitrih, pravilnih IN natančnih krogov = nov ritem (novo izhodišče)
       wError: 1.0, wDeselect: 0.3, wEarly: 0.5,
-      wImprecise: 0.25, impreciseTol: 0.35, // plank 27. 11.: dotiki so se slabšali že od 8. kroga, lastnik je popuščanje začutil v 15. – sama natančnost ne sme obarvati rdeče
+      wImprecise: 0.35, impreciseTol: 0.30, // uglašeno na planku 27. 11.: oranžno ob prvem popuščanju dotikov, rdeče ob lastnikovem občutku (15.), padec ob koncu (17.)
       repeat: 1.5,        // zanihanje tudi v prejšnjem krogu
       escalate: 1.25,     // zanihanje večje kot v prejšnjem krogu
       recover: 0.5,       // miren krog: B *= 0.5
@@ -618,7 +618,7 @@ body.reading #s-speech{position:fixed;inset:0;padding:0;margin:0;max-width:none;
       if (r.early) p.early = o.wEarly * r.early;
       if (r.offset != null && st.offBase != null && r.offset > st.offBase + o.impreciseTol) p.imprecise = o.wImprecise;
       // nov, hitrejši ritem brez napak: po nekaj zaporednih krogih postane novo izhodišče
-      const cleanFast = p.fast && r.ok && !r.deselects && !r.early;
+      const cleanFast = p.fast && r.ok && !r.deselects && !r.early && !p.imprecise; // hiter in natančen = nov ritem; hiter in nenatančen = nestrpnost
       st.fastRun = cleanFast ? st.fastRun.concat(r.time) : [];
       if (st.fastRun.length >= o.rebase) { st.base = median(st.fastRun); st.fastRun = []; res.rebased = true; delete p.fast; }
       const raw = Math.min(o.maxD, Object.values(p).reduce((a, b) => a + b, 0));
@@ -1179,7 +1179,7 @@ async function startSpeech() {
   const ti = +$('spText').value; sp.text = GOVOR_TEXTS[ti >= 0 ? ti : Math.floor(Math.random() * GOVOR_TEXTS.length)];
   sp.wpm = +$('spWpm').value;
   Object.assign(rec.meta, { mode: 'govor', skipSec: sp.dur, text: sp.text.title, wpm: sp.wpm, voiceOn: $('spVoice').checked });
-  sp.voice = findVoice(); voiceInfo();
+  sp.voice = findVoice(); voiceInfo(); rec.meta.voice = sp.voice ? sp.voice.name + ' (' + sp.voice.lang + ')' : null;
   show('s-speech'); spShow('ready');
 }
 $('spVoice').addEventListener('change', voiceInfo);
